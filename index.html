@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Lord Anwith - Premium Mobile</title>
+  <title>Lord Anwith - Wood Edition</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <style>
     /* 1. Mobile Optimization */
@@ -11,20 +11,17 @@
       height: 100vh; 
       width: 100vw;
       overflow: hidden; 
-      /* REPLACED GRADIENT WITH DARK FALLBACK COLOR */
-      background: #0f2027; 
+      /* Fallback dark brown if image takes a moment */
+      background: #2d1e12; 
       font-family: system-ui, -apple-system, sans-serif;
       touch-action: none; 
       -webkit-user-select: none; 
       user-select: none;
     }
 
-    /* REMOVED OLD GRADIENT ANIMATION KEYFRAMES */
-
     canvas { 
       display: block; 
       margin: auto; 
-      /* REMOVED GLASS EFFECT - Canvas now draws its own background */
       max-width: 600px; 
       width: 100%; 
       height: 100%; 
@@ -45,7 +42,8 @@
     #start-msg {
       text-align: center;
       color: #fff;
-      text-shadow: 0 4px 12px rgba(0,0,0,0.8);
+      /* Heavy shadow to make text pop against the wood background */
+      text-shadow: 0 4px 15px rgba(0,0,0,0.9);
       animation: float 3s ease-in-out infinite;
     }
 
@@ -53,18 +51,20 @@
       font-size: 3rem;
       margin: 0;
       font-weight: 800;
-      background: -webkit-linear-gradient(#fff, #bbb);
+      /* Gold/Wood Gradient for Text */
+      background: -webkit-linear-gradient(#fff, #ffc107);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-      filter: drop-shadow(0 2px 5px rgba(0,0,0,0.5));
+      filter: drop-shadow(0 4px 4px rgba(0,0,0,0.8));
     }
 
     p {
       font-size: 1.2rem;
       margin-top: 10px;
-      font-weight: 600;
-      color: #eee;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+      font-weight: 700;
+      /* Bright Amber color to match wood theme */
+      color: #ffca28; 
+      text-shadow: 0 2px 4px rgba(0,0,0,1);
     }
 
     @keyframes float {
@@ -74,7 +74,7 @@
 
     #debug {
       position: fixed; bottom: 10px; left: 10px; 
-      color: rgba(255,255,255,0.4); 
+      color: rgba(255,255,255,0.5); 
       font-family: monospace; font-size: 10px; 
       pointer-events: none;
       z-index: 5;
@@ -87,7 +87,7 @@
     <div id="start-msg">
       <h1>LORD ANWITH</h1>
       <p>Tap Screen to Start</p>
-      <p style="font-size: 0.9rem; color: #4ef2a8; margin-top:20px;">Target: 10 Points</p>
+      <p style="font-size: 0.9rem; color: #fff; margin-top:20px; opacity:0.8">Target: 10 Points</p>
     </div>
   </div>
 
@@ -102,15 +102,11 @@
 
     // --- ASSETS ---
     const playerImg = new Image();
-    // IMPORTANT: MAKE SURE YOUR PLAYER IMAGE NAME IS CORRECT HERE
     playerImg.src = "assets/anwi13.jpg"; 
 
-    // *** NEW BACKGROUND ASSET ***
+    // *** BACKGROUND IMAGE ***
     const bgImg = new Image();
-    // I am using a placeholder online image so it works immediately.
-    // Replace this with your local image like: "assets/wood_bg.jpg"
-    bgImg.src = "https://images.unsplash.com/photo-1542202229-7d93c33f5d07?q=80&w=1000&auto=format&fit=crop";
-    // A dark forest looks good.
+    bgImg.src = "assets/wood.jpg"; // Your wood pile image
 
     // SOUNDS
     const failAudio = new Audio();
@@ -125,7 +121,7 @@
     const winImg = new Image();
     winImg.src = "assets/kaup.jpg"; 
 
-    // Resize Logic
+    // Resize
     function resize() {
       c.width = Math.min(window.innerWidth, 600);
       c.height = window.innerHeight;
@@ -133,7 +129,7 @@
     window.addEventListener('resize', resize);
     resize();
 
-    // Game Config
+    // Config
     const WIN_SCORE = 10; 
 
     // Game state
@@ -148,23 +144,20 @@
       particles: [],
       score: 0,
       spawnTimer: 0,
-      // *** NEW BACKGROUND STATE ***
       bgX: 0,
-      bgSpeed: 2 // Background moves slower than walls for depth effect
+      bgSpeed: 1.5 // Slow parallax scroll
     };
 
     let audioUnlocked = false;
 
-    // --- AUDIO UNLOCKER ---
+    // --- AUDIO HELPER ---
     function tryUnlockAudio() {
       if (audioUnlocked) return;
       try {
-        const sounds = [failAudio, winAudio, jumpAudio];
-        sounds.forEach(snd => {
+        [failAudio, winAudio, jumpAudio].forEach(snd => {
             const p = snd.play();
             if (p !== undefined) {
-                p.then(() => { snd.pause(); snd.currentTime = 0; })
-                 .catch(e => {});
+                p.then(() => { snd.pause(); snd.currentTime = 0; }).catch(e => {});
             }
         });
         audioUnlocked = true;
@@ -173,26 +166,21 @@
 
     // --- CONTROLS ---
     function jump() {
-      // 1. START GAME
       if (!state.gameStarted) {
         state.gameStarted = true;
         state.running = true;
         uiLayer.style.display = 'none';
-        
         state.player.vy = state.jumpPower;
-        
         tryUnlockAudio();
         playJumpSound();
         return;
       }
 
-      // 2. RESTART
       if (!state.running || state.won) {
         reset();
         return;
       }
 
-      // 3. JUMP (INGAME)
       if (state.running && !state.won) {
         state.player.vy = state.jumpPower;
         state.player.angle = -0.4;
@@ -206,12 +194,8 @@
         jumpAudio.play().catch(e => {});
     }
 
-    // Input Listeners
     c.addEventListener('mousedown', jump);
-    c.addEventListener('touchstart', (e) => { 
-      e.preventDefault(); 
-      jump(); 
-    }, { passive: false });
+    c.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); }, { passive: false });
 
     function reset() {
       failAudio.pause(); failAudio.currentTime = 0;
@@ -231,19 +215,19 @@
       uiLayer.style.display = 'none'; 
     }
 
-    // --- GAME LOOP ---
+    // --- LOOP ---
     function loop() {
       requestAnimationFrame(loop);
       ctx.clearRect(0, 0, c.width, c.height);
 
-      // 1. DRAW BACKGROUND FIRST (Behind everything)
+      // 1. Draw Wood Background
       drawBackground();
 
       if (!state.gameStarted) {
-         drawPlayer();
-         // Darken background slightly on start screen for text readability
-         ctx.fillStyle = "rgba(0,0,0,0.4)";
+         // Darken bg for intro
+         ctx.fillStyle = "rgba(0,0,0,0.5)";
          ctx.fillRect(0,0,c.width,c.height);
+         drawPlayer();
          return;
       }
 
@@ -257,7 +241,7 @@
         return;
       }
 
-      // Logic
+      // Physics
       state.spawnTimer++;
       if (state.spawnTimer > 110 && !state.won) {
         spawnWall();
@@ -281,40 +265,36 @@
 
       state.score++;
       let points = Math.floor(state.score / 100); 
-
       if (points >= WIN_SCORE) triggerWin();
 
-      // Drawing elements on top of background
       drawWalls();
       drawParticles();
       drawPlayer();
       drawScore(points);
     }
 
-    // --- NEW BACKGROUND DRAWER ---
+    // --- DRAWING FUNCTIONS ---
+    
     function drawBackground() {
-        // Move background if game is running
         if (state.running && !state.won) {
             state.bgX -= state.bgSpeed;
-            // Reset position for seamless loop
-            if (state.bgX <= -c.width) {
-                state.bgX = 0;
-            }
+            if (state.bgX <= -c.width) state.bgX = 0;
         }
-
+        
         if (bgImg.complete) {
-            // Draw image twice side-by-side to fill screen while scrolling
-            // We stretch the image to fit the canvas height
+            // Draw image twice to scroll it
+            // We darken it slightly with a filter so game elements pop
+            ctx.filter = "brightness(0.7)"; 
             ctx.drawImage(bgImg, state.bgX, 0, c.width, c.height);
             ctx.drawImage(bgImg, state.bgX + c.width, 0, c.width, c.height);
+            ctx.filter = "none"; // Reset filter
         } else {
-            // Fallback color if image hasn't loaded
-            ctx.fillStyle = "#0f2027";
+            // Fallback brown
+            ctx.fillStyle = "#3e2723";
             ctx.fillRect(0,0,c.width, c.height);
         }
     }
 
-    // --- HELPERS ---
     function spawnWall() {
       const gap = 175;
       const thickness = 55;
@@ -332,7 +312,8 @@
           vx: (Math.random() - 0.5) * 2,
           vy: Math.random() * 2,
           life: 1.0,
-          color: `rgba(255, 255, 255, ${Math.random()})`
+          // SAWDUST COLOR (Light Wood/Tan)
+          color: `rgba(222, 184, 135, ${Math.random()})` 
         });
       }
     }
@@ -346,12 +327,17 @@
     function drawWalls() {
       ctx.shadowBlur = 0;
       for (const w of state.walls) {
-        ctx.fillStyle = "#1e2a36"; 
+        // WALL COLOR: Dark Bark Brown
+        ctx.fillStyle = "#3E2723"; 
         ctx.fillRect(w.x, w.y, w.w, w.h);
-        ctx.lineWidth = 2;
-        ctx.strokeStyle = "#4ef2a8";
+        
+        // BORDER COLOR: Light Cut Wood
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#8D6E63"; 
         ctx.strokeRect(w.x, w.y, w.w, w.h);
-        ctx.fillStyle = "rgba(0,0,0,0.3)";
+        
+        // Inner shadow
+        ctx.fillStyle = "rgba(0,0,0,0.4)";
         ctx.fillRect(w.x + 5, w.y + 5, w.w - 10, w.h - 10);
       }
     }
@@ -367,7 +353,7 @@
           ctx.fillStyle = p.color;
           ctx.globalAlpha = p.life;
           ctx.beginPath();
-          ctx.arc(p.x, p.y, 2, 0, Math.PI*2);
+          ctx.arc(p.x, p.y, 3, 0, Math.PI*2); // Slightly bigger particles
           ctx.fill();
           ctx.globalAlpha = 1.0;
         }
@@ -375,14 +361,18 @@
     }
 
     function drawScore(points) {
-      ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+      // Semi-transparent dark wood background for score
+      ctx.fillStyle = "rgba(40, 30, 20, 0.7)"; 
       ctx.beginPath();
       if (ctx.roundRect) ctx.roundRect(15, 15, 140, 50, 10);
       else ctx.rect(15, 15, 140, 50);
       ctx.fill();
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-      ctx.lineWidth = 1;
+      
+      // Gold border
+      ctx.strokeStyle = "#FFC107";
+      ctx.lineWidth = 2;
       ctx.stroke();
+
       ctx.fillStyle = "#fff";
       ctx.font = "800 24px sans-serif";
       ctx.textAlign = "left";
@@ -394,8 +384,9 @@
       ctx.save();
       ctx.translate(state.player.x + state.player.w/2, state.player.y + state.player.h/2);
       ctx.rotate(state.player.angle);
-      ctx.shadowColor = "rgba(0,0,0,0.5)";
-      ctx.shadowBlur = 10;
+      // Glow
+      ctx.shadowColor = "rgba(0,0,0,0.8)";
+      ctx.shadowBlur = 15;
       if (playerImg.complete) {
         ctx.beginPath();
         ctx.arc(0, 0, state.player.w/2, 0, Math.PI*2);
@@ -403,7 +394,8 @@
         ctx.drawImage(playerImg, -state.player.w/2, -state.player.h/2, state.player.w, state.player.h);
         ctx.beginPath();
         ctx.arc(0, 0, state.player.w/2, 0, Math.PI*2);
-        ctx.strokeStyle = "#fff";
+        // Gold Border for player
+        ctx.strokeStyle = "#FFD700"; 
         ctx.lineWidth = 3;
         ctx.stroke();
       } else {
@@ -416,14 +408,16 @@
     }
 
     function drawOverlay() {
-        ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+        ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
         ctx.fillRect(0,0,c.width, c.height);
-        ctx.fillStyle = "#ff6b6b";
+        
+        ctx.fillStyle = "#ff5252";
         ctx.font = "900 48px sans-serif";
         ctx.textAlign = "center";
-        ctx.shadowColor = "#ff6b6b";
+        ctx.shadowColor = "#ff0000";
         ctx.shadowBlur = 20;
         ctx.fillText("CRASHED", c.width/2, c.height/2 - 20);
+        
         ctx.shadowBlur = 0;
         ctx.fillStyle = "#fff";
         ctx.font = "300 18px sans-serif";
@@ -449,13 +443,13 @@
       state.player.x += (targetX - state.player.x) * 0.05;
       state.player.y += (targetY - state.player.y) * 0.05;
       state.player.angle = 0;
-      drawBackground(); // Keep background visible
+      drawBackground(); 
       drawPlayer();
       const prizeX = c.width / 2 + 20;
       const prizeY = c.height / 2 - 40;
       const prizeSize = 80;
       ctx.save();
-      ctx.shadowColor = "#f1c40f";
+      ctx.shadowColor = "#FFD700";
       ctx.shadowBlur = 30;
       if (winImg.complete) {
         ctx.beginPath();
@@ -469,11 +463,12 @@
         ctx.fill();
       }
       ctx.restore();
-      ctx.fillStyle = "#4ef2a8";
+      
+      ctx.fillStyle = "#FFD700"; // Gold Text
       ctx.font = "900 40px sans-serif";
       ctx.textAlign = "center";
-      ctx.shadowColor = "#4ef2a8";
-      ctx.shadowBlur = 20;
+      ctx.shadowColor = "#FFD700";
+      ctx.shadowBlur = 10;
       ctx.fillText("VICTORY!", c.width/2, c.height/2 - 100);
       
       ctx.shadowBlur = 0;
