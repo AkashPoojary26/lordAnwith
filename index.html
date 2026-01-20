@@ -2,34 +2,110 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Lord Anwith</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lord Anwith - Premium Edition</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <style>
-    html, body { margin:0; height:100%; background:#1a1a1a; overflow: hidden; }
-    canvas { display:block; margin:auto; background: #222; max-width:600px; width:100%; height:100vh; }
-    #msg {
-      position:fixed; left:50%; top:20px; transform:translateX(-50%);
-      color:#fff; font:bold 20px system-ui; text-align: center; pointer-events: none;
-      text-shadow: 0px 2px 4px rgba(0,0,0,0.8);
+    /* PREMIUM POLISH: Animated Gradient Background */
+    body { 
+      margin: 0; 
+      height: 100vh; 
+      overflow: hidden; 
+      background: linear-gradient(-45deg, #0f2027, #203a43, #2c5364); 
+      background-size: 400% 400%;
+      animation: gradientBG 15s ease infinite;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      touch-action: none; /* Prevents double-tap zoom */
+    }
+
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* GLASSMORPHISM UI */
+    canvas { 
+      display: block; 
+      margin: auto; 
+      /* Make canvas transparent so CSS background shows through */
+      background: rgba(0, 0, 0, 0.2); 
+      backdrop-filter: blur(5px);
+      max-width: 600px; 
+      width: 100%; 
+      height: 100vh; 
+      box-shadow: 0 0 50px rgba(0,0,0,0.5);
+    }
+
+    #ui-layer {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; /* Let clicks pass through to canvas */
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #start-msg {
+      text-align: center;
+      color: #fff;
+      text-shadow: 0 4px 12px rgba(0,0,0,0.6);
+      animation: float 3s ease-in-out infinite;
       z-index: 10;
     }
+
+    h1 {
+      font-size: 3rem;
+      margin: 0;
+      letter-spacing: 2px;
+      font-weight: 800;
+      background: -webkit-linear-gradient(#eee, #aaa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    p {
+      font-size: 1.2rem;
+      margin-top: 10px;
+      font-weight: 300;
+      opacity: 0.9;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
     #debug {
-      position:fixed; bottom:10px; left:10px; color:yellow; font-family:monospace; font-size:12px; pointer-events:none;
+      position: fixed; bottom: 10px; left: 10px; 
+      color: rgba(255,255,255,0.5); 
+      font-family: monospace; font-size: 10px; 
+      pointer-events: none;
     }
   </style>
 </head>
 <body>
-  <div id="msg">Tap to Start<br><small>Reach Score 10 to Win!</small></div>
+
+  <div id="ui-layer">
+    <div id="start-msg">
+      <h1>LORD ANWITH</h1>
+      <p>Tap to Begin Journey</p>
+      <p style="font-size: 0.9rem; margin-top: 20px; color: #4ef2a8;">Target: 10 Points</p>
+    </div>
+  </div>
+
   <div id="debug"></div>
   <canvas id="game"></canvas>
- <script>
+
+  <script>
     const c = document.getElementById('game');
     const ctx = c.getContext('2d');
+    const uiLayer = document.getElementById('start-msg');
     const debugDiv = document.getElementById('debug');
 
     // --- ASSETS ---
     const playerImg = new Image();
-    playerImg.src = "assets/an1.jpeg"; 
+    playerImg.src = "assets/an.jpeg"; 
 
     const failAudio = new Audio();
     failAudio.src = "assets/ad2.mp3"; 
@@ -40,9 +116,9 @@
     const winAudio = new Audio();
     winAudio.src = "assets/ad1.mp3"; 
 
-    // Debugging
-    failAudio.onerror = () => { debugDiv.innerText = "Error: Missing fail sound"; };
-    winAudio.onerror = () => { debugDiv.innerText = "Error: Missing win sound"; };
+    // Error Handling
+    failAudio.onerror = () => { debugDiv.innerText = "Audio Error: ad2.mp3"; };
+    winAudio.onerror = () => { debugDiv.innerText = "Audio Error: ad1.mp3"; };
 
     // Resize
     function resize() {
@@ -53,17 +129,18 @@
     resize();
 
     // Game Config
-    const WIN_SCORE = 10; // Reach 10 points to win
+    const WIN_SCORE = 10; 
 
     // Game state
     const state = {
       running: false, 
       gameStarted: false,
       won: false,
-      gravity: 0.6,
-      jumpPower: -10,
+      gravity: 0.55,    // Smoother gravity
+      jumpPower: -9.5,  // Snappy jump
       player: { x: 60, y: c.height/2, w: 50, h: 50, vy: 0, angle: 0 },
       walls: [],
+      particles: [],    // New: Particle system
       score: 0,
       spawnTimer: 0
     };
@@ -76,28 +153,29 @@
       if (!state.gameStarted) {
         state.gameStarted = true;
         state.running = true;
-        document.getElementById('msg').innerText = "";
+        uiLayer.style.display = 'none'; // Hide UI
         
         // Unlock Audio
         if (!audioUnlocked) {
-          failAudio.volume = 0; failAudio.play().then(() => { failAudio.pause(); failAudio.currentTime=0; failAudio.volume=1; });
-          winAudio.volume = 0; winAudio.play().then(() => { winAudio.pause(); winAudio.currentTime=0; winAudio.volume=1; });
+          failAudio.volume = 0; failAudio.play().then(()=>{ failAudio.pause(); failAudio.currentTime=0; failAudio.volume=1; });
+          winAudio.volume = 0; winAudio.play().then(()=>{ winAudio.pause(); winAudio.currentTime=0; winAudio.volume=1; });
           audioUnlocked = true;
         }
         state.player.vy = state.jumpPower;
         return;
       }
 
-      // 2. Restart if lost
+      // 2. Restart
       if (!state.running && !state.won) {
         reset();
         return;
       }
 
-      // 3. Normal Jump
+      // 3. Jump
       if (state.running && !state.won) {
         state.player.vy = state.jumpPower;
-        state.player.angle = -0.5;
+        state.player.angle = -0.4;
+        createParticles(state.player.x, state.player.y + state.player.h); // Dust effect
       }
     }
 
@@ -112,9 +190,24 @@
       state.player.vy = 0;
       state.player.angle = 0;
       state.walls = [];
+      state.particles = [];
       state.score = 0;
       state.spawnTimer = 0;
-      document.getElementById('msg').innerText = "";
+      uiLayer.style.display = 'none';
+    }
+
+    // --- PARTICLES SYSTEM (Premium Feel) ---
+    function createParticles(x, y) {
+      for(let i=0; i<5; i++) {
+        state.particles.push({
+          x: x + Math.random()*40,
+          y: y,
+          vx: (Math.random() - 0.5) * 2,
+          vy: Math.random() * 2,
+          life: 1.0,
+          color: `rgba(255, 255, 255, ${Math.random()})`
+        });
+      }
     }
 
     // --- MAIN LOOP ---
@@ -122,118 +215,189 @@
       requestAnimationFrame(loop);
       ctx.clearRect(0, 0, c.width, c.height);
 
-      // Intro Screen
+      // Intro Screen (Background Player)
       if (!state.gameStarted) {
-         ctx.fillStyle = "#fff";
-         ctx.font = "20px system-ui";
-         ctx.textAlign = "center";
-         ctx.fillText("Tap screen to start", c.width/2, c.height/2);
          drawPlayer();
          return;
       }
 
-      // --- WINNING SCENE ---
+      // Win Scene
       if (state.won) {
         drawWinScene();
         return;
       }
 
-      // --- LOSING SCREEN ---
+      // Lost Screen
       if (!state.running) {
-        ctx.fillStyle = "white";
-        ctx.font = "30px system-ui";
-        ctx.textAlign = "center";
-        ctx.fillText("💀 RIP 💀", c.width/2, c.height/2);
-        ctx.font = "20px system-ui";
-        ctx.fillText("Tap to Retry", c.width/2, c.height/2 + 40);
-        drawPlayer();
-        drawWalls();
+        drawOverlay();
         return;
       }
 
-      // --- GAME LOGIC ---
+      // --- LOGIC ---
       state.spawnTimer++;
       
-      // *** FIX IS HERE: Only check if we haven't won yet ***
-      if (state.spawnTimer > 100 && !state.won) {
+      // Spawn walls (stops when won)
+      if (state.spawnTimer > 110 && !state.won) {
         spawnWall();
         state.spawnTimer = 0;
       }
 
-      // Gravity
+      // Physics
       state.player.vy += state.gravity;
       state.player.y += state.player.vy;
-      if (state.player.angle < 0.5) state.player.angle += 0.05;
+      state.player.angle += 0.03; // Constant slow spin
 
-      // Die conditions
+      // Floor/Ceiling
       if (state.player.y + state.player.h > c.height || state.player.y < 0) {
         die();
       }
 
-      // Move Walls
+      // Walls
       state.walls.forEach(w => w.x += w.vx);
       state.walls = state.walls.filter(w => w.x + w.w > -100);
 
-      // Check Collision
+      // Collision
       for (const w of state.walls) {
         if (rectsOverlap(state.player, w)) die();
       }
 
-      // Score Calculation
+      // Score
       state.score++;
       let points = Math.floor(state.score / 100); 
 
-      // Win Condition
+      // Win Check
       if (points >= WIN_SCORE) {
         triggerWin();
       }
 
+      // --- DRAWING ---
       drawWalls();
+      drawParticles();
       drawPlayer();
-
-      // Draw Score
-      ctx.fillStyle = "#fff";
-      ctx.font = "20px monospace";
-      ctx.textAlign = "left";
-      ctx.fillText("Score: " + points + " / " + WIN_SCORE, 10, 30);
+      drawScore(points);
     }
 
     // --- HELPERS ---
     function spawnWall() {
-      const gap = 150;
-      const thickness = 60;
+      const gap = 170; // Slightly wider for better playability
+      const thickness = 55;
       const speed = 5;
       const gapY = Math.random() * (c.height - gap - 100) + 50;
+      
+      // Top Wall
       state.walls.push({ x: c.width, y: 0, w: thickness, h: gapY, vx: -speed });
+      // Bottom Wall
       state.walls.push({ x: c.width, y: gapY + gap, w: thickness, h: c.height - (gapY + gap), vx: -speed });
     }
 
     function rectsOverlap(a, b) {
-      const pad = 8;
+      const pad = 12; // Very forgiving hitbox
       return a.x + pad < b.x + b.w && a.x + a.w - pad > b.x &&
              a.y + pad < b.y + b.h && a.y + a.h - pad > b.y;
     }
 
     function drawWalls() {
-      ctx.fillStyle = "#888"; 
+      // Premium Wall Style: Dark with a bright accent border
+      ctx.shadowBlur = 0;
       for (const w of state.walls) {
+        // Main block
+        ctx.fillStyle = "#1e2a36"; 
         ctx.fillRect(w.x, w.y, w.w, w.h);
-        ctx.strokeStyle = "#000";
+        
+        // Neon Border
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#4ef2a8"; // Neon Green
         ctx.strokeRect(w.x, w.y, w.w, w.h);
+        
+        // Inner shadow detail
+        ctx.fillStyle = "rgba(0,0,0,0.3)";
+        ctx.fillRect(w.x + 5, w.y + 5, w.w - 10, w.h - 10);
       }
+    }
+
+    function drawParticles() {
+      for (let i = state.particles.length - 1; i >= 0; i--) {
+        let p = state.particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 0.05;
+        
+        if(p.life <= 0) {
+          state.particles.splice(i, 1);
+        } else {
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = p.life;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 2, 0, Math.PI*2);
+          ctx.fill();
+          ctx.globalAlpha = 1.0;
+        }
+      }
+    }
+
+    function drawScore(points) {
+      // Glassmorphism Scorecard
+      ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+      ctx.beginPath();
+      ctx.roundRect(15, 15, 140, 50, 10);
+      ctx.fill();
+      
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.fillStyle = "#fff";
+      ctx.font = "800 24px sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(points + " / " + WIN_SCORE, 35, 42);
     }
 
     function drawPlayer() {
       ctx.save();
       ctx.translate(state.player.x + state.player.w/2, state.player.y + state.player.h/2);
       ctx.rotate(state.player.angle);
+      
+      // Shadow for depth
+      ctx.shadowColor = "rgba(0,0,0,0.5)";
+      ctx.shadowBlur = 10;
+
       if (playerImg.complete) {
+        // Circular mask for player
+        ctx.beginPath();
+        ctx.arc(0, 0, state.player.w/2, 0, Math.PI*2);
+        ctx.clip();
         ctx.drawImage(playerImg, -state.player.w/2, -state.player.h/2, state.player.w, state.player.h);
+        
+        // Border ring
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 3;
+        ctx.stroke();
       } else {
-        ctx.fillStyle = "red";
-        ctx.fillRect(-state.player.w/2, -state.player.h/2, state.player.w, state.player.h);
+        ctx.fillStyle = "#ff4757";
+        ctx.beginPath();
+        ctx.arc(0, 0, state.player.w/2, 0, Math.PI*2);
+        ctx.fill();
       }
       ctx.restore();
+    }
+
+    function drawOverlay() {
+        // Darkened background
+        ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+        ctx.fillRect(0,0,c.width, c.height);
+        
+        ctx.fillStyle = "#ff6b6b";
+        ctx.font = "900 48px sans-serif";
+        ctx.textAlign = "center";
+        ctx.shadowColor = "#ff6b6b";
+        ctx.shadowBlur = 20;
+        ctx.fillText("CRASHED", c.width/2, c.height/2 - 20);
+        
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = "#fff";
+        ctx.font = "300 18px sans-serif";
+        ctx.fillText("Tap anywhere to retry", c.width/2, c.height/2 + 30);
     }
 
     function die() {
@@ -252,6 +416,7 @@
       const targetX = c.width / 2 - 60;
       const targetY = c.height / 2;
       
+      // Smooth lerp animation
       state.player.x += (targetX - state.player.x) * 0.05;
       state.player.y += (targetY - state.player.y) * 0.05;
       state.player.angle = 0;
@@ -262,21 +427,37 @@
       const prizeY = c.height / 2 - 40;
       const prizeSize = 80;
 
+      ctx.save();
+      // Glow effect for prize
+      ctx.shadowColor = "#f1c40f";
+      ctx.shadowBlur = 30;
+
       if (winImg.complete) {
+        // Circular Prize
+        ctx.beginPath();
+        ctx.arc(prizeX + prizeSize/2, prizeY + prizeSize/2, prizeSize/2, 0, Math.PI*2);
+        ctx.clip();
         ctx.drawImage(winImg, prizeX, prizeY, prizeSize, prizeSize);
       } else {
         ctx.fillStyle = "gold";
-        ctx.fillRect(prizeX, prizeY, prizeSize, prizeSize);
+        ctx.beginPath();
+        ctx.arc(prizeX + prizeSize/2, prizeY + prizeSize/2, prizeSize/2, 0, Math.PI*2);
+        ctx.fill();
       }
+      ctx.restore();
 
       ctx.fillStyle = "#4ef2a8";
-      ctx.font = "bold 40px system-ui";
+      ctx.font = "900 40px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("YOU DID IT!", c.width/2, c.height/2 - 80);
+      ctx.shadowColor = "#4ef2a8";
+      ctx.shadowBlur = 20;
+      ctx.fillText("VICTORY!", c.width/2, c.height/2 - 100);
       
+      // Heart
       if (Math.abs(state.player.x - targetX) < 5) {
-         ctx.font = "40px system-ui";
-         ctx.fillText("❤️", c.width/2, c.height/2);
+         ctx.font = "40px sans-serif";
+         ctx.shadowBlur = 0;
+         ctx.fillText("❤️", c.width/2, c.height/2 + 10);
       }
     }
 
