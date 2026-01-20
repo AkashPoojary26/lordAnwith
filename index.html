@@ -15,7 +15,7 @@
       background-size: 400% 400%;
       animation: gradientBG 15s ease infinite;
       font-family: system-ui, -apple-system, sans-serif;
-      touch-action: none; /* Critical: Prevents double-tap zoom */
+      touch-action: none; 
       -webkit-user-select: none; 
       user-select: none;
     }
@@ -36,17 +36,16 @@
       height: 100%; 
     }
 
-    /* 2. The Title Screen Layer */
     #ui-layer {
       position: absolute;
       top: 0; left: 0; width: 100%; height: 100%;
-      pointer-events: none; /* Allows clicks to pass through to canvas */
+      pointer-events: none; 
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      z-index: 20; /* Ensure it is on top */
-      transition: opacity 0.3s; /* Smooth fade out */
+      z-index: 20; 
+      transition: opacity 0.3s; 
     }
 
     #start-msg {
@@ -102,7 +101,6 @@
   <script>
     const c = document.getElementById('game');
     const ctx = c.getContext('2d');
-    // FIX: We select the PARENT container 'ui-layer', not just the text
     const uiLayer = document.getElementById('ui-layer');
     const debugDiv = document.getElementById('debug');
 
@@ -110,12 +108,16 @@
     const playerImg = new Image();
     playerImg.src = "assets/an.jpeg"; 
 
-    // Mobile Audio: Errors handled silently
+    // SOUNDS
     const failAudio = new Audio();
     failAudio.src = "assets/ad2.mp3"; 
     
     const winAudio = new Audio();
     winAudio.src = "assets/ad1.mp3"; 
+    
+    // *** NEW: JUMP AUDIO ***
+    const jumpAudio = new Audio();
+    jumpAudio.src = "assets/jump.mp3"; // <--- MAKE SURE THIS FILE EXISTS
     
     const winImg = new Image();
     winImg.src = "assets/kaup.jpg"; 
@@ -147,38 +149,38 @@
 
     let audioUnlocked = false;
 
-    // --- ROBUST AUDIO UNLOCKER ---
+    // --- AUDIO UNLOCKER ---
     function tryUnlockAudio() {
       if (audioUnlocked) return;
       try {
-        const p1 = failAudio.play();
-        if (p1 !== undefined) {
-            p1.then(() => { failAudio.pause(); failAudio.currentTime = 0; })
-              .catch(e => {});
-        }
-        const p2 = winAudio.play();
-        if (p2 !== undefined) {
-            p2.then(() => { winAudio.pause(); winAudio.currentTime = 0; })
-              .catch(e => {});
-        }
+        // Prepare all sounds
+        const sounds = [failAudio, winAudio, jumpAudio];
+        sounds.forEach(snd => {
+            const p = snd.play();
+            if (p !== undefined) {
+                p.then(() => { snd.pause(); snd.currentTime = 0; })
+                 .catch(e => {});
+            }
+        });
         audioUnlocked = true;
       } catch (e) {}
     }
 
     // --- CONTROLS ---
     function jump() {
-      // 1. START GAME (FIXED)
+      // 1. START GAME
       if (!state.gameStarted) {
         state.gameStarted = true;
         state.running = true;
-        
-        // FIX: Hides the entire overlay container
         uiLayer.style.display = 'none';
         
         state.player.vy = state.jumpPower;
-
-        // Try audio (Silent background attempt)
+        
+        // Unlock all audio on first tap
         tryUnlockAudio();
+        
+        // Play jump sound immediately
+        playJumpSound();
         return;
       }
 
@@ -188,12 +190,22 @@
         return;
       }
 
-      // 3. JUMP
+      // 3. JUMP (INGAME)
       if (state.running && !state.won) {
         state.player.vy = state.jumpPower;
         state.player.angle = -0.4;
         createParticles(state.player.x, state.player.y + state.player.h);
+        
+        // *** PLAY JUMP SOUND ***
+        playJumpSound();
       }
+    }
+
+    // Helper to play jump sound cleanly
+    function playJumpSound() {
+        // Reset time so you can tap fast and hear it every time
+        jumpAudio.currentTime = 0;
+        jumpAudio.play().catch(e => {});
     }
 
     // Input Listeners
@@ -214,7 +226,6 @@
       state.particles = [];
       state.score = 0;
       state.spawnTimer = 0;
-      // FIX: Ensure UI stays hidden on simple restart
       uiLayer.style.display = 'none'; 
     }
 
@@ -223,25 +234,22 @@
       requestAnimationFrame(loop);
       ctx.clearRect(0, 0, c.width, c.height);
 
-      // Intro
       if (!state.gameStarted) {
          drawPlayer();
          return;
       }
 
-      // Win
       if (state.won) {
         drawWinScene();
         return;
       }
 
-      // Game Over
       if (!state.running) {
         drawOverlay();
         return;
       }
 
-      // --- LOGIC ---
+      // Logic
       state.spawnTimer++;
       if (state.spawnTimer > 110 && !state.won) {
         spawnWall();
@@ -268,7 +276,7 @@
 
       if (points >= WIN_SCORE) triggerWin();
 
-      // --- DRAWING ---
+      // Drawing
       drawWalls();
       drawParticles();
       drawPlayer();
