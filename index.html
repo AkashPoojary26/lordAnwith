@@ -5,13 +5,13 @@
   <title>Lord Anwith - Wood Edition</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <style>
-    /* 1. Mobile Optimization: No selecting, no zooming */
+    /* 1. Mobile Optimization */
     body { 
       margin: 0; 
       height: 100vh; 
       width: 100vw;
       overflow: hidden; 
-      background: #2d1e12; /* Dark wood fallback */
+      background: #2d1e12; 
       font-family: system-ui, -apple-system, sans-serif;
       touch-action: none; 
       -webkit-user-select: none; 
@@ -29,7 +29,7 @@
     #ui-layer {
       position: absolute;
       top: 0; left: 0; width: 100%; height: 100%;
-      pointer-events: none; /* Clicks pass through to the game */
+      pointer-events: none; 
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -49,7 +49,6 @@
       font-size: 3rem;
       margin: 0;
       font-weight: 800;
-      /* Gold Gradient Text */
       background: -webkit-linear-gradient(#fff, #ffc107);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -62,6 +61,18 @@
       font-weight: 700;
       color: #ffca28; 
       text-shadow: 0 2px 4px rgba(0,0,0,1);
+    }
+
+    /* CREDITS STYLE */
+    .credits {
+      margin-top: 40px;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: rgba(255, 255, 255, 0.6);
+      font-weight: 400;
+      border-top: 1px solid rgba(255, 193, 7, 0.3);
+      padding-top: 10px;
     }
 
     @keyframes float {
@@ -85,6 +96,8 @@
       <h1>LORD ANWITH</h1>
       <p>Tap Screen to Start</p>
       <p style="font-size: 0.9rem; color: #fff; margin-top:20px; opacity:0.8">Target: 10 Points</p>
+      
+      <div class="credits">Developed by Akash Poojary</div>
     </div>
   </div>
 
@@ -117,26 +130,19 @@
     const winImg = new Image();
     winImg.src = "assets/kaup.jpg"; 
 
-    // --- 3. PERFORMANCE RESIZE ---
+    // --- 3. RESIZE (Optimized) ---
     let gameW, gameH; 
 
     function resize() {
-      // PERFORMANCE FIX: Cap pixel density at 2x. 
-      // 3x or 4x (iPhone Pro) is too heavy and causes lag. 2x is sharp enough.
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      
       gameW = Math.min(window.innerWidth, 600);
       gameH = window.innerHeight;
 
-      // Set internal resolution (Sharpness)
       c.width = gameW * dpr;
       c.height = gameH * dpr;
-
-      // Set CSS display size (Layout)
       c.style.width = gameW + "px";
       c.style.height = gameH + "px";
 
-      // Normalize drawing
       ctx.scale(dpr, dpr);
     }
     window.addEventListener('resize', resize);
@@ -146,32 +152,33 @@
     const WIN_SCORE = 10; 
 
     // --- 4. GAME STATE ---
+    // FEATURE 1: Load High Score from Local Storage
+    let storedHighScore = localStorage.getItem('lordAnwithHighScore') || 0;
+
     const state = {
       running: false, 
       gameStarted: false,
       won: false,
-      // SMOOTH PHYSICS:
-      gravity: 0.40,    // Not too heavy, not too floaty
-      jumpPower: -7.5,  // Solid upward push
-      // Player Size 70x70
+      gravity: 0.40,    
+      jumpPower: -7.5,  
       player: { x: 60, y: 0, w: 70, h: 70, vy: 0, angle: 0 }, 
       walls: [],
       particles: [],
       score: 0,
+      highScore: parseInt(storedHighScore), // Load high score
       spawnTimer: 0,
       bgX: 0,
-      bgSpeed: 1.5 
+      bgSpeed: 1.5,
+      shake: 0 // FEATURE 3: Shake timer
     };
     
-    // Center player vertically on load
     state.player.y = gameH / 2;
 
     let audioUnlocked = false;
 
-    // --- 5. AUDIO SYSTEM ---
+    // --- 5. AUDIO ---
     function tryUnlockAudio() {
       if (audioUnlocked) return;
-      // Pre-load all sounds on first tap
       [failAudio, winAudio, jumpAudio].forEach(snd => {
           snd.load();
           const p = snd.play();
@@ -189,7 +196,6 @@
 
     // --- 6. CONTROLS ---
     function jump() {
-      // A. START GAME
       if (!state.gameStarted) {
         state.gameStarted = true;
         state.running = true;
@@ -200,27 +206,23 @@
         return;
       }
 
-      // B. RESTART (If Crashed OR Won)
       if (!state.running || state.won) {
         reset();
         return;
       }
 
-      // C. JUMP
       if (state.running && !state.won) {
         state.player.vy = state.jumpPower;
-        state.player.angle = -0.3; // Tilt up slightly
+        state.player.angle = -0.3; 
         createParticles(state.player.x, state.player.y + state.player.h);
         playJumpSound();
       }
     }
 
-    // Handle interactions
     c.addEventListener('mousedown', jump);
     c.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); }, { passive: false });
 
     function reset() {
-      // STOP AUDIO INSTANTLY
       failAudio.pause(); failAudio.currentTime = 0;
       winAudio.pause();  winAudio.currentTime = 0;
       jumpAudio.pause(); jumpAudio.currentTime = 0;
@@ -235,75 +237,86 @@
       state.particles = [];
       state.score = 0;
       state.spawnTimer = 0;
+      state.shake = 0; // Reset shake
       uiLayer.style.display = 'none'; 
     }
 
     // --- 7. MAIN LOOP ---
     function loop() {
       requestAnimationFrame(loop);
-      // Clear screen
+      
+      // FEATURE 3: Screen Shake Logic
+      ctx.save(); // Save context before shaking
+      if (state.shake > 0) {
+          const dx = (Math.random() - 0.5) * 15; // Random X shake
+          const dy = (Math.random() - 0.5) * 15; // Random Y shake
+          ctx.translate(dx, dy);
+          state.shake--;
+      }
+
       ctx.clearRect(0, 0, gameW, gameH);
 
-      // Draw Background Layer
       drawBackground();
 
-      // Intro Screen
       if (!state.gameStarted) {
-         ctx.fillStyle = "rgba(0,0,0,0.5)"; // Dim background
+         ctx.fillStyle = "rgba(0,0,0,0.5)"; 
          ctx.fillRect(0, 0, gameW, gameH);
          drawPlayer();
+         ctx.restore(); // Restore shake
          return;
       }
 
-      // Win Screen
       if (state.won) {
         drawWinScene();
+        ctx.restore();
         return;
       }
 
-      // Fail Screen
       if (!state.running) {
         drawOverlay();
+        ctx.restore();
         return;
       }
 
-      // --- GAME LOGIC ---
+      // Logic
       state.spawnTimer++;
-      // Spawn walls
       if (state.spawnTimer > 110 && !state.won) {
         spawnWall();
         state.spawnTimer = 0;
       }
 
-      // Physics
       state.player.vy += state.gravity;
       state.player.y += state.player.vy;
-      state.player.angle += 0.02; // Slow spin
+      state.player.angle += 0.02; 
 
-      // Floor/Ceiling collision
       if (state.player.y + state.player.h > gameH || state.player.y < 0) {
         die();
       }
 
-      // Move Walls
       state.walls.forEach(w => w.x += w.vx);
       state.walls = state.walls.filter(w => w.x + w.w > -100);
 
-      // Wall Collision
       for (const w of state.walls) {
         if (rectsOverlap(state.player, w)) die();
       }
 
-      // Score
       state.score++;
       let points = Math.floor(state.score / 100); 
+      
+      // Update High Score
+      if (points > state.highScore) {
+          state.highScore = points;
+          localStorage.setItem('lordAnwithHighScore', state.highScore);
+      }
+
       if (points >= WIN_SCORE) triggerWin();
 
-      // Draw Everything
       drawWalls();
       drawParticles();
       drawPlayer();
       drawScore(points);
+      
+      ctx.restore(); // End shake transformation
     }
 
     // --- 8. DRAWING HELPERS ---
@@ -315,11 +328,8 @@
         }
         
         if (bgImg.complete) {
-            // Draw 2 copies for infinite scroll
             ctx.drawImage(bgImg, state.bgX, 0, gameW, gameH);
             ctx.drawImage(bgImg, state.bgX + gameW, 0, gameW, gameH);
-            
-            // Dark overlay to make game elements pop
             ctx.fillStyle = "rgba(0,0,0,0.3)";
             ctx.fillRect(0, 0, gameW, gameH);
         } else {
@@ -329,7 +339,7 @@
     }
 
     function spawnWall() {
-      const gap = 180; // Easier gap for mobile playability
+      const gap = 180; 
       const thickness = 60;
       const speed = 5;
       const gapY = Math.random() * (gameH - gap - 100) + 50;
@@ -338,7 +348,6 @@
     }
 
     function createParticles(x, y) {
-      // Wood chips/Sawdust particles
       for(let i=0; i<6; i++) {
         state.particles.push({
           x: x + Math.random()*40,
@@ -346,31 +355,39 @@
           vx: (Math.random() - 0.5) * 3,
           vy: Math.random() * 3,
           life: 1.0,
-          color: `rgba(222, 184, 135, ${Math.random()})` // Tan color
+          color: `rgba(222, 184, 135, ${Math.random()})` 
         });
       }
     }
 
     function rectsOverlap(a, b) {
-      const pad = 12; // Hitbox forgiveness
+      const pad = 12; 
       return a.x + pad < b.x + b.w && a.x + a.w - pad > b.x &&
              a.y + pad < b.y + b.h && a.y + a.h - pad > b.y;
     }
 
+    // FEATURE 2: Realistic "Log" Walls
     function drawWalls() {
       for (const w of state.walls) {
-        // Log Color
+        // 1. Dark Bark Base
         ctx.fillStyle = "#3E2723"; 
         ctx.fillRect(w.x, w.y, w.w, w.h);
         
-        // Bark Border
+        // 2. Vertical Bark Lines (Texture)
+        ctx.strokeStyle = "#281810"; // Darker brown
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        // Draw 3 lines per log
+        for(let i=10; i<w.w; i+=15) {
+            ctx.moveTo(w.x + i, w.y);
+            ctx.lineTo(w.x + i, w.y + w.h);
+        }
+        ctx.stroke();
+
+        // 3. Border
         ctx.lineWidth = 3;
         ctx.strokeStyle = "#8D6E63"; 
         ctx.strokeRect(w.x, w.y, w.w, w.h);
-        
-        // Shadow depth
-        ctx.fillStyle = "rgba(0,0,0,0.4)";
-        ctx.fillRect(w.x + 5, w.y + 5, w.w - 10, w.h - 10);
       }
     }
 
@@ -393,11 +410,11 @@
     }
 
     function drawScore(points) {
-      // Wood Plaque Scoreboard
+      // Score Box
       ctx.fillStyle = "rgba(40, 30, 20, 0.8)"; 
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(15, 15, 140, 50, 10);
-      else ctx.rect(15, 15, 140, 50);
+      if (ctx.roundRect) ctx.roundRect(15, 15, 140, 60, 10); // Taller for High Score
+      else ctx.rect(15, 15, 140, 60);
       ctx.fill();
       
       ctx.strokeStyle = "#FFC107";
@@ -405,10 +422,17 @@
       ctx.stroke();
 
       ctx.fillStyle = "#fff";
-      ctx.font = "800 24px sans-serif";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
-      ctx.fillText(points + " / " + WIN_SCORE, 35, 42);
+      
+      // Current Score
+      ctx.font = "800 22px sans-serif";
+      ctx.fillText("Score: " + points, 30, 35);
+      
+      // FEATURE 1: High Score Display
+      ctx.fillStyle = "#FFD700"; // Gold
+      ctx.font = "600 14px sans-serif";
+      ctx.fillText("High: " + state.highScore, 30, 60);
     }
 
     function drawPlayer() {
@@ -416,18 +440,15 @@
       ctx.translate(state.player.x + state.player.w/2, state.player.y + state.player.h/2);
       ctx.rotate(state.player.angle);
       
-      // Shadow
       ctx.shadowColor = "rgba(0,0,0,0.8)";
       ctx.shadowBlur = 15;
 
       if (playerImg.complete) {
-        // Circle Mask
         ctx.beginPath();
         ctx.arc(0, 0, state.player.w/2, 0, Math.PI*2);
         ctx.clip();
         ctx.drawImage(playerImg, -state.player.w/2, -state.player.h/2, state.player.w, state.player.h);
         
-        // Gold Ring
         ctx.beginPath();
         ctx.arc(0, 0, state.player.w/2, 0, Math.PI*2);
         ctx.strokeStyle = "#FFD700"; 
@@ -460,9 +481,13 @@
     }
 
     function die() {
-      state.running = false;
-      failAudio.currentTime = 0; 
-      failAudio.play().catch(e=>{});
+      if (state.running) {
+          state.running = false;
+          // FEATURE 3: Trigger Shake
+          state.shake = 15; // Shake for 15 frames
+          failAudio.currentTime = 0; 
+          failAudio.play().catch(e=>{});
+      }
     }
 
     function triggerWin() {
@@ -476,7 +501,6 @@
       const targetX = gameW / 2 - 60;
       const targetY = gameH / 2;
       
-      // Move player to center
       state.player.x += (targetX - state.player.x) * 0.05;
       state.player.y += (targetY - state.player.y) * 0.05;
       state.player.angle = 0;
@@ -488,7 +512,6 @@
       const prizeY = gameH / 2 - 40;
       const prizeSize = 80;
       
-      // Draw Prize
       ctx.save();
       ctx.shadowColor = "#FFD700";
       ctx.shadowBlur = 30;
@@ -505,7 +528,6 @@
       }
       ctx.restore();
       
-      // Victory Text
       ctx.fillStyle = "#FFD700"; 
       ctx.font = "900 40px sans-serif";
       ctx.textAlign = "center";
@@ -518,7 +540,6 @@
       ctx.font = "300 18px sans-serif";
       ctx.fillText("Tap to Play Again", gameW/2, gameH/2 + 50);
 
-      // Heart
       if (Math.abs(state.player.x - targetX) < 5) {
          ctx.font = "40px sans-serif";
          ctx.fillText("❤️", gameW/2, gameH/2 + 10);
