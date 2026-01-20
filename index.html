@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Lord Anwith - Premium Edition</title>
+  <title>Lord Anwith</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <style>
     /* PREMIUM POLISH: Animated Gradient Background */
@@ -97,28 +97,33 @@
   <div id="debug"></div>
   <canvas id="game"></canvas>
 
-  <script>
+<script>
     const c = document.getElementById('game');
     const ctx = c.getContext('2d');
     const uiLayer = document.getElementById('start-msg');
     const debugDiv = document.getElementById('debug');
 
     // --- ASSETS ---
+    // 1. Player Image
     const playerImg = new Image();
     playerImg.src = "assets/an.jpeg"; 
 
+    // 2. Audio (Mobile Fix: Force Preload)
     const failAudio = new Audio();
     failAudio.src = "assets/ad2.mp3"; 
-
-    const winImg = new Image();
-    winImg.src = "assets/kaup.jpg"; 
+    failAudio.preload = "auto"; // Tell browser to download immediately
 
     const winAudio = new Audio();
     winAudio.src = "assets/ad1.mp3"; 
+    winAudio.preload = "auto"; 
 
-    // Error Handling
-    failAudio.onerror = () => { debugDiv.innerText = "Audio Error: ad2.mp3"; };
-    winAudio.onerror = () => { debugDiv.innerText = "Audio Error: ad1.mp3"; };
+    // 3. Win Image
+    const winImg = new Image();
+    winImg.src = "assets/kaup.jpg"; 
+
+    // Error Logging
+    failAudio.onerror = () => { debugDiv.innerText = "Error: ad2.mp3 not found"; };
+    winAudio.onerror = () => { debugDiv.innerText = "Error: ad1.mp3 not found"; };
 
     // Resize
     function resize() {
@@ -136,31 +141,48 @@
       running: false, 
       gameStarted: false,
       won: false,
-      gravity: 0.55,    // Smoother gravity
-      jumpPower: -9.5,  // Snappy jump
+      gravity: 0.55,
+      jumpPower: -9.5,
       player: { x: 60, y: c.height/2, w: 50, h: 50, vy: 0, angle: 0 },
       walls: [],
-      particles: [],    // New: Particle system
+      particles: [],
       score: 0,
       spawnTimer: 0
     };
 
     let audioUnlocked = false;
 
+    // --- MOBILE AUDIO FIX ---
+    // We run this on the very first touch to "Warm up" the audio engine
+    function unlockAudioEngine() {
+      if (audioUnlocked) return;
+      
+      // Play and immediately pause. 
+      // We do NOT change volume because iOS ignores volume changes.
+      failAudio.play().then(() => {
+        failAudio.pause();
+        failAudio.currentTime = 0;
+      }).catch((e) => { debugDiv.innerText = "FailAudio block: " + e; });
+
+      winAudio.play().then(() => {
+        winAudio.pause();
+        winAudio.currentTime = 0;
+      }).catch((e) => { debugDiv.innerText = "WinAudio block: " + e; });
+
+      audioUnlocked = true;
+      debugDiv.innerText = ""; // Clear debug if it works
+    }
+
     // --- CONTROLS ---
     function jump() {
       // 1. Start Game
       if (!state.gameStarted) {
+        // TRIGGER UNLOCK HERE
+        unlockAudioEngine();
+
         state.gameStarted = true;
         state.running = true;
-        uiLayer.style.display = 'none'; // Hide UI
-        
-        // Unlock Audio
-        if (!audioUnlocked) {
-          failAudio.volume = 0; failAudio.play().then(()=>{ failAudio.pause(); failAudio.currentTime=0; failAudio.volume=1; });
-          winAudio.volume = 0; winAudio.play().then(()=>{ winAudio.pause(); winAudio.currentTime=0; winAudio.volume=1; });
-          audioUnlocked = true;
-        }
+        uiLayer.style.display = 'none';
         state.player.vy = state.jumpPower;
         return;
       }
@@ -175,12 +197,18 @@
       if (state.running && !state.won) {
         state.player.vy = state.jumpPower;
         state.player.angle = -0.4;
-        createParticles(state.player.x, state.player.y + state.player.h); // Dust effect
+        createParticles(state.player.x, state.player.y + state.player.h);
       }
     }
 
+    // Mouse
     c.addEventListener('mousedown', jump);
-    c.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); }, { passive:false });
+    
+    // Touch (Mobile) - Passive false is important for some browsers
+    c.addEventListener('touchstart', (e) => { 
+      e.preventDefault(); // Prevents double-firing on some Androids
+      jump(); 
+    }, { passive: false });
 
     function reset() {
       state.running = true;
@@ -193,10 +221,10 @@
       state.particles = [];
       state.score = 0;
       state.spawnTimer = 0;
-      uiLayer.style.display = 'none';
+      uiLayer.style.display = 'flex'; // Show UI again
     }
 
-    // --- PARTICLES SYSTEM (Premium Feel) ---
+    // --- PARTICLES ---
     function createParticles(x, y) {
       for(let i=0; i<5; i++) {
         state.particles.push({
@@ -215,101 +243,81 @@
       requestAnimationFrame(loop);
       ctx.clearRect(0, 0, c.width, c.height);
 
-      // Intro Screen (Background Player)
       if (!state.gameStarted) {
          drawPlayer();
          return;
       }
 
-      // Win Scene
       if (state.won) {
         drawWinScene();
         return;
       }
 
-      // Lost Screen
       if (!state.running) {
         drawOverlay();
         return;
       }
 
-      // --- LOGIC ---
+      // Logic
       state.spawnTimer++;
-      
-      // Spawn walls (stops when won)
       if (state.spawnTimer > 110 && !state.won) {
         spawnWall();
         state.spawnTimer = 0;
       }
 
-      // Physics
       state.player.vy += state.gravity;
       state.player.y += state.player.vy;
-      state.player.angle += 0.03; // Constant slow spin
+      state.player.angle += 0.03;
 
-      // Floor/Ceiling
       if (state.player.y + state.player.h > c.height || state.player.y < 0) {
         die();
       }
 
-      // Walls
       state.walls.forEach(w => w.x += w.vx);
       state.walls = state.walls.filter(w => w.x + w.w > -100);
 
-      // Collision
       for (const w of state.walls) {
         if (rectsOverlap(state.player, w)) die();
       }
 
-      // Score
       state.score++;
       let points = Math.floor(state.score / 100); 
 
-      // Win Check
       if (points >= WIN_SCORE) {
         triggerWin();
       }
 
-      // --- DRAWING ---
+      // Drawing
       drawWalls();
       drawParticles();
       drawPlayer();
       drawScore(points);
     }
 
-    // --- HELPERS ---
+    // --- DRAWING HELPERS ---
     function spawnWall() {
-      const gap = 170; // Slightly wider for better playability
+      const gap = 170;
       const thickness = 55;
       const speed = 5;
       const gapY = Math.random() * (c.height - gap - 100) + 50;
-      
-      // Top Wall
       state.walls.push({ x: c.width, y: 0, w: thickness, h: gapY, vx: -speed });
-      // Bottom Wall
       state.walls.push({ x: c.width, y: gapY + gap, w: thickness, h: c.height - (gapY + gap), vx: -speed });
     }
 
     function rectsOverlap(a, b) {
-      const pad = 12; // Very forgiving hitbox
+      const pad = 12;
       return a.x + pad < b.x + b.w && a.x + a.w - pad > b.x &&
              a.y + pad < b.y + b.h && a.y + a.h - pad > b.y;
     }
 
     function drawWalls() {
-      // Premium Wall Style: Dark with a bright accent border
       ctx.shadowBlur = 0;
       for (const w of state.walls) {
-        // Main block
         ctx.fillStyle = "#1e2a36"; 
         ctx.fillRect(w.x, w.y, w.w, w.h);
-        
-        // Neon Border
         ctx.lineWidth = 2;
-        ctx.strokeStyle = "#4ef2a8"; // Neon Green
+        ctx.strokeStyle = "#4ef2a8";
         ctx.strokeRect(w.x, w.y, w.w, w.h);
-        
-        // Inner shadow detail
         ctx.fillStyle = "rgba(0,0,0,0.3)";
         ctx.fillRect(w.x + 5, w.y + 5, w.w - 10, w.h - 10);
       }
@@ -321,10 +329,8 @@
         p.x += p.vx;
         p.y += p.vy;
         p.life -= 0.05;
-        
-        if(p.life <= 0) {
-          state.particles.splice(i, 1);
-        } else {
+        if(p.life <= 0) state.particles.splice(i, 1);
+        else {
           ctx.fillStyle = p.color;
           ctx.globalAlpha = p.life;
           ctx.beginPath();
@@ -336,16 +342,14 @@
     }
 
     function drawScore(points) {
-      // Glassmorphism Scorecard
       ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
       ctx.beginPath();
-      ctx.roundRect(15, 15, 140, 50, 10);
+      if (ctx.roundRect) ctx.roundRect(15, 15, 140, 50, 10);
+      else ctx.rect(15, 15, 140, 50);
       ctx.fill();
-      
       ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
       ctx.lineWidth = 1;
       ctx.stroke();
-
       ctx.fillStyle = "#fff";
       ctx.font = "800 24px sans-serif";
       ctx.textAlign = "left";
@@ -357,19 +361,16 @@
       ctx.save();
       ctx.translate(state.player.x + state.player.w/2, state.player.y + state.player.h/2);
       ctx.rotate(state.player.angle);
-      
-      // Shadow for depth
       ctx.shadowColor = "rgba(0,0,0,0.5)";
       ctx.shadowBlur = 10;
 
       if (playerImg.complete) {
-        // Circular mask for player
         ctx.beginPath();
         ctx.arc(0, 0, state.player.w/2, 0, Math.PI*2);
         ctx.clip();
         ctx.drawImage(playerImg, -state.player.w/2, -state.player.h/2, state.player.w, state.player.h);
-        
-        // Border ring
+        ctx.beginPath();
+        ctx.arc(0, 0, state.player.w/2, 0, Math.PI*2);
         ctx.strokeStyle = "#fff";
         ctx.lineWidth = 3;
         ctx.stroke();
@@ -383,17 +384,14 @@
     }
 
     function drawOverlay() {
-        // Darkened background
         ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
         ctx.fillRect(0,0,c.width, c.height);
-        
         ctx.fillStyle = "#ff6b6b";
         ctx.font = "900 48px sans-serif";
         ctx.textAlign = "center";
         ctx.shadowColor = "#ff6b6b";
         ctx.shadowBlur = 20;
         ctx.fillText("CRASHED", c.width/2, c.height/2 - 20);
-        
         ctx.shadowBlur = 0;
         ctx.fillStyle = "#fff";
         ctx.font = "300 18px sans-serif";
@@ -402,21 +400,21 @@
 
     function die() {
       state.running = false;
-      failAudio.currentTime = 0; failAudio.play().catch(e=>{});
+      // Simple play call, no volume hacks
+      failAudio.currentTime = 0; 
+      failAudio.play().catch(e=>{ console.log(e); });
     }
 
     function triggerWin() {
       state.won = true;
       state.walls = []; 
       winAudio.currentTime = 0; 
-      winAudio.play().catch(e=>{});
+      winAudio.play().catch(e=>{ console.log(e); });
     }
 
     function drawWinScene() {
       const targetX = c.width / 2 - 60;
       const targetY = c.height / 2;
-      
-      // Smooth lerp animation
       state.player.x += (targetX - state.player.x) * 0.05;
       state.player.y += (targetY - state.player.y) * 0.05;
       state.player.angle = 0;
@@ -428,12 +426,9 @@
       const prizeSize = 80;
 
       ctx.save();
-      // Glow effect for prize
       ctx.shadowColor = "#f1c40f";
       ctx.shadowBlur = 30;
-
       if (winImg.complete) {
-        // Circular Prize
         ctx.beginPath();
         ctx.arc(prizeX + prizeSize/2, prizeY + prizeSize/2, prizeSize/2, 0, Math.PI*2);
         ctx.clip();
@@ -452,8 +447,6 @@
       ctx.shadowColor = "#4ef2a8";
       ctx.shadowBlur = 20;
       ctx.fillText("VICTORY!", c.width/2, c.height/2 - 100);
-      
-      // Heart
       if (Math.abs(state.player.x - targetX) < 5) {
          ctx.font = "40px sans-serif";
          ctx.shadowBlur = 0;
