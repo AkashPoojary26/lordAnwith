@@ -2,9 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Lord Anwith</title>
-  <link rel="icon" type="image/jpeg" href="assets/anwi13.jpg">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Lord Anwith - Wood Edition</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <style>
     /* 1. Mobile Optimization */
     body { 
@@ -60,15 +59,15 @@
       filter: drop-shadow(0 4px 4px rgba(0,0,0,0.8));
     }
 
-    /* --- NEW LOGO STYLE --- */
+    /* --- LOGO STYLE --- */
     #menu-logo {
       width: 110px;
       height: 110px;
-      border-radius: 50%; /* Circle shape */
-      border: 4px solid #FFC107; /* Gold border */
-      box-shadow: 0 0 20px rgba(255, 193, 7, 0.4); /* Glow */
+      border-radius: 50%; 
+      border: 4px solid #FFC107; 
+      box-shadow: 0 0 20px rgba(255, 193, 7, 0.4); 
       object-fit: cover;
-      margin: 15px 0; /* Space around logo */
+      margin: 15px 0; 
       animation: pulse 2s infinite ease-in-out;
     }
 
@@ -182,7 +181,6 @@
     let gameW, gameH; 
 
     function resize() {
-      // 2x Quality Cap
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       gameW = Math.min(window.innerWidth, 600);
       gameH = window.innerHeight;
@@ -197,8 +195,8 @@
     window.addEventListener('resize', resize);
     resize();
 
-    // Game Settings
-    const WIN_SCORE = 10; 
+    // Settings
+    const WIN_SCORE = 3; 
     let storedHighScore = localStorage.getItem('lordAnwithHighScore') || 0;
 
     // --- 4. GAME STATE ---
@@ -206,12 +204,11 @@
       running: false, 
       gameStarted: false,
       won: false,
+      canRestart: true, // NEW: Controls the freeze
       
-      // Physics
       gravity: 0.40,    
       jumpPower: -7.5,
       
-      // Level Params
       wallGap: 200, 
       wallSpeed: 4,
       spawnFreq: 120,
@@ -231,7 +228,6 @@
     let audioUnlocked = false;
 
     // --- 5. START & DIFFICULTY ---
-    
     window.startGame = function(level) {
         if (level === 'easy') {
             state.wallGap = 230;   
@@ -279,17 +275,27 @@
     function handleTap(e) {
       if (e.cancelable) e.preventDefault(); 
 
-      // If waiting in menu, ignore taps
+      // If waiting in menu, ignore
       if (!state.gameStarted) return;
 
-      // If finished -> Return to Menu
-      if (!state.running || state.won) {
+      // CRASHED
+      if (!state.running && !state.won) {
         returnToMenu();
         return;
       }
 
-      // Jump
-      if (state.running && !state.won) {
+      // WON
+      if (state.won) {
+        // *** FIX: Only return if the freeze is over ***
+        if (state.canRestart) {
+            returnToMenu();
+        }
+        // If state.canRestart is false, we ignore the tap (FREEZE)
+        return;
+      }
+
+      // JUMP
+      if (state.running) {
         state.player.vy = state.jumpPower;
         state.player.angle = -0.3; 
         createParticles(state.player.x, state.player.y + state.player.h);
@@ -337,11 +343,10 @@
       ctx.clearRect(0, 0, gameW, gameH);
       drawBackground();
 
-      // Intro / Menu Screen
+      // Intro
       if (!state.gameStarted) {
          ctx.fillStyle = "rgba(0,0,0,0.6)"; 
          ctx.fillRect(0, 0, gameW, gameH);
-         // Don't draw player here, handled by HTML Logo
          ctx.restore();
          return;
       }
@@ -563,8 +568,15 @@
     function triggerWin() {
       state.won = true;
       state.walls = []; 
+      state.canRestart = false; // *** FREEZE INPUT ***
+      
       winAudio.currentTime = 0; 
       winAudio.play().catch(e=>{});
+
+      // *** UNFREEZE AFTER 2.5 SECONDS ***
+      setTimeout(() => {
+          state.canRestart = true;
+      }, 2500);
     }
 
     function drawWinScene() {
@@ -605,10 +617,13 @@
       ctx.shadowBlur = 10;
       ctx.fillText("VICTORY!", gameW/2, gameH/2 - 100);
       
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = "#fff";
-      ctx.font = "300 18px sans-serif";
-      ctx.fillText("Tap to Return to Menu", gameW/2, gameH/2 + 50);
+      // *** SHOW "RETURN" TEXT ONLY AFTER FREEZE IS OVER ***
+      if (state.canRestart) {
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = "#fff";
+          ctx.font = "300 18px sans-serif";
+          ctx.fillText("Tap to Return to Menu", gameW/2, gameH/2 + 50);
+      }
 
       if (Math.abs(state.player.x - targetX) < 5) {
          ctx.font = "40px sans-serif";
