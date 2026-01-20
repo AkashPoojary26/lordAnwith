@@ -2,19 +2,22 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Lord Anwith</title>
+  <title>Lord Anwith - Premium Mobile</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <style>
-    /* PREMIUM POLISH: Animated Gradient Background */
+    /* 1. Mobile Optimization */
     body { 
       margin: 0; 
       height: 100vh; 
+      width: 100vw;
       overflow: hidden; 
       background: linear-gradient(-45deg, #0f2027, #203a43, #2c5364); 
       background-size: 400% 400%;
       animation: gradientBG 15s ease infinite;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      touch-action: none; /* Prevents double-tap zoom */
+      font-family: system-ui, -apple-system, sans-serif;
+      touch-action: none; /* Critical: Prevents double-tap zoom */
+      -webkit-user-select: none; 
+      user-select: none;
     }
 
     @keyframes gradientBG {
@@ -23,27 +26,27 @@
       100% { background-position: 0% 50%; }
     }
 
-    /* GLASSMORPHISM UI */
     canvas { 
       display: block; 
       margin: auto; 
-      /* Make canvas transparent so CSS background shows through */
       background: rgba(0, 0, 0, 0.2); 
       backdrop-filter: blur(5px);
       max-width: 600px; 
       width: 100%; 
-      height: 100vh; 
-      box-shadow: 0 0 50px rgba(0,0,0,0.5);
+      height: 100%; 
     }
 
+    /* 2. The Title Screen Layer */
     #ui-layer {
       position: absolute;
       top: 0; left: 0; width: 100%; height: 100%;
-      pointer-events: none; /* Let clicks pass through to canvas */
+      pointer-events: none; /* Allows clicks to pass through to canvas */
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
+      z-index: 20; /* Ensure it is on top */
+      transition: opacity 0.3s; /* Smooth fade out */
     }
 
     #start-msg {
@@ -51,15 +54,13 @@
       color: #fff;
       text-shadow: 0 4px 12px rgba(0,0,0,0.6);
       animation: float 3s ease-in-out infinite;
-      z-index: 10;
     }
 
     h1 {
       font-size: 3rem;
       margin: 0;
-      letter-spacing: 2px;
       font-weight: 800;
-      background: -webkit-linear-gradient(#eee, #aaa);
+      background: -webkit-linear-gradient(#fff, #bbb);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
@@ -68,7 +69,7 @@
       font-size: 1.2rem;
       margin-top: 10px;
       font-weight: 300;
-      opacity: 0.9;
+      color: #ccc;
     }
 
     @keyframes float {
@@ -78,9 +79,10 @@
 
     #debug {
       position: fixed; bottom: 10px; left: 10px; 
-      color: rgba(255,255,255,0.5); 
+      color: rgba(255,255,255,0.4); 
       font-family: monospace; font-size: 10px; 
       pointer-events: none;
+      z-index: 5;
     }
   </style>
 </head>
@@ -89,43 +91,36 @@
   <div id="ui-layer">
     <div id="start-msg">
       <h1>LORD ANWITH</h1>
-      <p>Tap to Begin Journey</p>
-      <p style="font-size: 0.9rem; margin-top: 20px; color: #4ef2a8;">Target: 10 Points</p>
+      <p>Tap Screen to Start</p>
+      <p style="font-size: 0.9rem; color: #4ef2a8; margin-top:20px;">Target: 10 Points</p>
     </div>
   </div>
 
   <div id="debug"></div>
   <canvas id="game"></canvas>
 
-<script>
+  <script>
     const c = document.getElementById('game');
     const ctx = c.getContext('2d');
-    const uiLayer = document.getElementById('start-msg');
+    // FIX: We select the PARENT container 'ui-layer', not just the text
+    const uiLayer = document.getElementById('ui-layer');
     const debugDiv = document.getElementById('debug');
 
     // --- ASSETS ---
-    // 1. Player Image
     const playerImg = new Image();
     playerImg.src = "assets/an.jpeg"; 
 
-    // 2. Audio (Mobile Fix: Force Preload)
+    // Mobile Audio: Errors handled silently
     const failAudio = new Audio();
     failAudio.src = "assets/ad2.mp3"; 
-    failAudio.preload = "auto"; // Tell browser to download immediately
-
+    
     const winAudio = new Audio();
     winAudio.src = "assets/ad1.mp3"; 
-    winAudio.preload = "auto"; 
-
-    // 3. Win Image
+    
     const winImg = new Image();
     winImg.src = "assets/kaup.jpg"; 
 
-    // Error Logging
-    failAudio.onerror = () => { debugDiv.innerText = "Error: ad2.mp3 not found"; };
-    winAudio.onerror = () => { debugDiv.innerText = "Error: ad1.mp3 not found"; };
-
-    // Resize
+    // Resize Logic
     function resize() {
       c.width = Math.min(window.innerWidth, 600);
       c.height = window.innerHeight;
@@ -152,48 +147,48 @@
 
     let audioUnlocked = false;
 
-    // --- MOBILE AUDIO FIX ---
-    // We run this on the very first touch to "Warm up" the audio engine
-    function unlockAudioEngine() {
+    // --- ROBUST AUDIO UNLOCKER ---
+    function tryUnlockAudio() {
       if (audioUnlocked) return;
-      
-      // Play and immediately pause. 
-      // We do NOT change volume because iOS ignores volume changes.
-      failAudio.play().then(() => {
-        failAudio.pause();
-        failAudio.currentTime = 0;
-      }).catch((e) => { debugDiv.innerText = "FailAudio block: " + e; });
-
-      winAudio.play().then(() => {
-        winAudio.pause();
-        winAudio.currentTime = 0;
-      }).catch((e) => { debugDiv.innerText = "WinAudio block: " + e; });
-
-      audioUnlocked = true;
-      debugDiv.innerText = ""; // Clear debug if it works
+      try {
+        const p1 = failAudio.play();
+        if (p1 !== undefined) {
+            p1.then(() => { failAudio.pause(); failAudio.currentTime = 0; })
+              .catch(e => {});
+        }
+        const p2 = winAudio.play();
+        if (p2 !== undefined) {
+            p2.then(() => { winAudio.pause(); winAudio.currentTime = 0; })
+              .catch(e => {});
+        }
+        audioUnlocked = true;
+      } catch (e) {}
     }
 
     // --- CONTROLS ---
     function jump() {
-      // 1. Start Game
+      // 1. START GAME (FIXED)
       if (!state.gameStarted) {
-        // TRIGGER UNLOCK HERE
-        unlockAudioEngine();
-
         state.gameStarted = true;
         state.running = true;
+        
+        // FIX: Hides the entire overlay container
         uiLayer.style.display = 'none';
+        
         state.player.vy = state.jumpPower;
+
+        // Try audio (Silent background attempt)
+        tryUnlockAudio();
         return;
       }
 
-      // 2. Restart
+      // 2. RESTART
       if (!state.running && !state.won) {
         reset();
         return;
       }
 
-      // 3. Jump
+      // 3. JUMP
       if (state.running && !state.won) {
         state.player.vy = state.jumpPower;
         state.player.angle = -0.4;
@@ -201,12 +196,10 @@
       }
     }
 
-    // Mouse
+    // Input Listeners
     c.addEventListener('mousedown', jump);
-    
-    // Touch (Mobile) - Passive false is important for some browsers
     c.addEventListener('touchstart', (e) => { 
-      e.preventDefault(); // Prevents double-firing on some Androids
+      e.preventDefault(); 
       jump(); 
     }, { passive: false });
 
@@ -221,44 +214,34 @@
       state.particles = [];
       state.score = 0;
       state.spawnTimer = 0;
-      uiLayer.style.display = 'flex'; // Show UI again
+      // FIX: Ensure UI stays hidden on simple restart
+      uiLayer.style.display = 'none'; 
     }
 
-    // --- PARTICLES ---
-    function createParticles(x, y) {
-      for(let i=0; i<5; i++) {
-        state.particles.push({
-          x: x + Math.random()*40,
-          y: y,
-          vx: (Math.random() - 0.5) * 2,
-          vy: Math.random() * 2,
-          life: 1.0,
-          color: `rgba(255, 255, 255, ${Math.random()})`
-        });
-      }
-    }
-
-    // --- MAIN LOOP ---
+    // --- GAME LOOP ---
     function loop() {
       requestAnimationFrame(loop);
       ctx.clearRect(0, 0, c.width, c.height);
 
+      // Intro
       if (!state.gameStarted) {
          drawPlayer();
          return;
       }
 
+      // Win
       if (state.won) {
         drawWinScene();
         return;
       }
 
+      // Game Over
       if (!state.running) {
         drawOverlay();
         return;
       }
 
-      // Logic
+      // --- LOGIC ---
       state.spawnTimer++;
       if (state.spawnTimer > 110 && !state.won) {
         spawnWall();
@@ -283,25 +266,36 @@
       state.score++;
       let points = Math.floor(state.score / 100); 
 
-      if (points >= WIN_SCORE) {
-        triggerWin();
-      }
+      if (points >= WIN_SCORE) triggerWin();
 
-      // Drawing
+      // --- DRAWING ---
       drawWalls();
       drawParticles();
       drawPlayer();
       drawScore(points);
     }
 
-    // --- DRAWING HELPERS ---
+    // --- HELPERS ---
     function spawnWall() {
-      const gap = 170;
+      const gap = 175;
       const thickness = 55;
       const speed = 5;
       const gapY = Math.random() * (c.height - gap - 100) + 50;
       state.walls.push({ x: c.width, y: 0, w: thickness, h: gapY, vx: -speed });
       state.walls.push({ x: c.width, y: gapY + gap, w: thickness, h: c.height - (gapY + gap), vx: -speed });
+    }
+
+    function createParticles(x, y) {
+      for(let i=0; i<5; i++) {
+        state.particles.push({
+          x: x + Math.random()*40,
+          y: y,
+          vx: (Math.random() - 0.5) * 2,
+          vy: Math.random() * 2,
+          life: 1.0,
+          color: `rgba(255, 255, 255, ${Math.random()})`
+        });
+      }
     }
 
     function rectsOverlap(a, b) {
@@ -363,7 +357,6 @@
       ctx.rotate(state.player.angle);
       ctx.shadowColor = "rgba(0,0,0,0.5)";
       ctx.shadowBlur = 10;
-
       if (playerImg.complete) {
         ctx.beginPath();
         ctx.arc(0, 0, state.player.w/2, 0, Math.PI*2);
@@ -400,16 +393,15 @@
 
     function die() {
       state.running = false;
-      // Simple play call, no volume hacks
       failAudio.currentTime = 0; 
-      failAudio.play().catch(e=>{ console.log(e); });
+      failAudio.play().catch(e=>{});
     }
 
     function triggerWin() {
       state.won = true;
       state.walls = []; 
       winAudio.currentTime = 0; 
-      winAudio.play().catch(e=>{ console.log(e); });
+      winAudio.play().catch(e=>{});
     }
 
     function drawWinScene() {
@@ -418,13 +410,10 @@
       state.player.x += (targetX - state.player.x) * 0.05;
       state.player.y += (targetY - state.player.y) * 0.05;
       state.player.angle = 0;
-
       drawPlayer();
-
       const prizeX = c.width / 2 + 20;
       const prizeY = c.height / 2 - 40;
       const prizeSize = 80;
-
       ctx.save();
       ctx.shadowColor = "#f1c40f";
       ctx.shadowBlur = 30;
@@ -440,7 +429,6 @@
         ctx.fill();
       }
       ctx.restore();
-
       ctx.fillStyle = "#4ef2a8";
       ctx.font = "900 40px sans-serif";
       ctx.textAlign = "center";
