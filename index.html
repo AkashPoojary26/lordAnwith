@@ -139,7 +139,8 @@
       won: false,
       gravity: 0.55,
       jumpPower: -9.5,
-      player: { x: 60, y: c.height/2, w: 50, h: 50, vy: 0, angle: 0 },
+      // --- FIX: Changed Size from 50 to 70 here ---
+      player: { x: 60, y: c.height/2, w: 70, h: 70, vy: 0, angle: 0 },
       walls: [],
       particles: [],
       score: 0,
@@ -180,7 +181,6 @@
       }
 
       // 2. RESTART (If Crashed OR If Won)
-      // FIX: Added "|| state.won" so you can restart after winning
       if (!state.running || state.won) {
         reset();
         return;
