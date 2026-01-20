@@ -113,11 +113,10 @@
     failAudio.src = "assets/ad2.mp3"; 
     
     const winAudio = new Audio();
-    winAudio.src = "assets/jump2.mp3"; 
+    winAudio.src = "assets/ad1.mp3"; 
     
-    // *** NEW: JUMP AUDIO ***
     const jumpAudio = new Audio();
-    jumpAudio.src = "assets/jump.mp3"; // <--- MAKE SURE THIS FILE EXISTS
+    jumpAudio.src = "assets/jump.mp3"; 
     
     const winImg = new Image();
     winImg.src = "assets/kaup.jpg"; 
@@ -153,7 +152,6 @@
     function tryUnlockAudio() {
       if (audioUnlocked) return;
       try {
-        // Prepare all sounds
         const sounds = [failAudio, winAudio, jumpAudio];
         sounds.forEach(snd => {
             const p = snd.play();
@@ -176,10 +174,7 @@
         
         state.player.vy = state.jumpPower;
         
-        // Unlock all audio on first tap
         tryUnlockAudio();
-        
-        // Play jump sound immediately
         playJumpSound();
         return;
       }
@@ -190,20 +185,16 @@
         return;
       }
 
-      // 3. JUMP (INGAME)
+      // 3. JUMP
       if (state.running && !state.won) {
         state.player.vy = state.jumpPower;
         state.player.angle = -0.4;
         createParticles(state.player.x, state.player.y + state.player.h);
-        
-        // *** PLAY JUMP SOUND ***
         playJumpSound();
       }
     }
 
-    // Helper to play jump sound cleanly
     function playJumpSound() {
-        // Reset time so you can tap fast and hear it every time
         jumpAudio.currentTime = 0;
         jumpAudio.play().catch(e => {});
     }
@@ -216,6 +207,12 @@
     }, { passive: false });
 
     function reset() {
+      // --- FIX: STOP AUDIO IMMEDIATELY ---
+      failAudio.pause();
+      failAudio.currentTime = 0;
+      winAudio.pause();
+      winAudio.currentTime = 0;
+
       state.running = true;
       state.won = false;
       state.player.y = c.height / 2;
