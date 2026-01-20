@@ -5,30 +5,31 @@
   <title>Lord Anwith - Wood Edition</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <style>
-    /* 1. Mobile Optimization */
+    /* 1. Mobile Optimization: No selecting, no zooming */
     body { 
       margin: 0; 
       height: 100vh; 
       width: 100vw;
       overflow: hidden; 
-      background: #2d1e12; 
+      background: #2d1e12; /* Dark wood fallback */
       font-family: system-ui, -apple-system, sans-serif;
       touch-action: none; 
       -webkit-user-select: none; 
       user-select: none;
+      -webkit-tap-highlight-color: transparent;
     }
 
     canvas { 
       display: block; 
       margin: auto; 
-      /* We remove width/height here because JS handles it for sharpness */
       touch-action: none;
     }
 
+    /* 2. UI Overlay */
     #ui-layer {
       position: absolute;
       top: 0; left: 0; width: 100%; height: 100%;
-      pointer-events: none; 
+      pointer-events: none; /* Clicks pass through to the game */
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -48,6 +49,7 @@
       font-size: 3rem;
       margin: 0;
       font-weight: 800;
+      /* Gold Gradient Text */
       background: -webkit-linear-gradient(#fff, #ffc107);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -69,7 +71,7 @@
 
     #debug {
       position: fixed; bottom: 10px; left: 10px; 
-      color: rgba(255,255,255,0.5); 
+      color: rgba(255,255,255,0.3); 
       font-family: monospace; font-size: 10px; 
       pointer-events: none;
       z-index: 5;
@@ -95,15 +97,14 @@
     const uiLayer = document.getElementById('ui-layer');
     const debugDiv = document.getElementById('debug');
 
-    // --- ASSETS ---
+    // --- 1. ASSETS ---
     const playerImg = new Image();
     playerImg.src = "assets/anwi13.jpg"; 
 
-    // *** BACKGROUND IMAGE ***
     const bgImg = new Image();
     bgImg.src = "assets/wood.jpg"; 
 
-    // SOUNDS
+    // --- 2. SOUNDS ---
     const failAudio = new Audio();
     failAudio.src = "assets/ad1.mp3"; 
     
@@ -116,42 +117,43 @@
     const winImg = new Image();
     winImg.src = "assets/kaup.jpg"; 
 
-    // --- HIGH-DPI RESIZE FIX ---
-    let gameW, gameH; // We use these instead of c.width/c.height in logic
+    // --- 3. PERFORMANCE RESIZE ---
+    let gameW, gameH; 
 
     function resize() {
-      // 1. Get the screen's pixel density (usually 2 or 3 on mobile)
-      const dpr = window.devicePixelRatio || 1;
+      // PERFORMANCE FIX: Cap pixel density at 2x. 
+      // 3x or 4x (iPhone Pro) is too heavy and causes lag. 2x is sharp enough.
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
       
-      // 2. Calculate the Logical Size (CSS Size)
       gameW = Math.min(window.innerWidth, 600);
       gameH = window.innerHeight;
 
-      // 3. Set the Internal Resolution to High Quality
+      // Set internal resolution (Sharpness)
       c.width = gameW * dpr;
       c.height = gameH * dpr;
 
-      // 4. Force the CSS Size to stay normal
+      // Set CSS display size (Layout)
       c.style.width = gameW + "px";
       c.style.height = gameH + "px";
 
-      // 5. Scale the drawing context so logic coordinates don't break
+      // Normalize drawing
       ctx.scale(dpr, dpr);
     }
     window.addEventListener('resize', resize);
     resize();
 
-    // Config
+    // Game Settings
     const WIN_SCORE = 10; 
 
-    // Game state
+    // --- 4. GAME STATE ---
     const state = {
       running: false, 
       gameStarted: false,
       won: false,
-      gravity: 0.55,
-      jumpPower: -9.5,
-      // Use gameH instead of c.height for logic
+      // SMOOTH PHYSICS:
+      gravity: 0.40,    // Not too heavy, not too floaty
+      jumpPower: -7.5,  // Solid upward push
+      // Player Size 70x70
       player: { x: 60, y: 0, w: 70, h: 70, vy: 0, angle: 0 }, 
       walls: [],
       particles: [],
@@ -161,27 +163,33 @@
       bgSpeed: 1.5 
     };
     
-    // Initialize player position based on new gameH
+    // Center player vertically on load
     state.player.y = gameH / 2;
 
     let audioUnlocked = false;
 
-    // --- AUDIO HELPER ---
+    // --- 5. AUDIO SYSTEM ---
     function tryUnlockAudio() {
       if (audioUnlocked) return;
-      try {
-        [failAudio, winAudio, jumpAudio].forEach(snd => {
-            const p = snd.play();
-            if (p !== undefined) {
-                p.then(() => { snd.pause(); snd.currentTime = 0; }).catch(e => {});
-            }
-        });
-        audioUnlocked = true;
-      } catch (e) {}
+      // Pre-load all sounds on first tap
+      [failAudio, winAudio, jumpAudio].forEach(snd => {
+          snd.load();
+          const p = snd.play();
+          if (p !== undefined) {
+              p.then(() => { snd.pause(); snd.currentTime = 0; }).catch(e => {});
+          }
+      });
+      audioUnlocked = true;
     }
 
-    // --- CONTROLS ---
+    function playJumpSound() {
+        jumpAudio.currentTime = 0;
+        jumpAudio.play().catch(e => {});
+    }
+
+    // --- 6. CONTROLS ---
     function jump() {
+      // A. START GAME
       if (!state.gameStarted) {
         state.gameStarted = true;
         state.running = true;
@@ -192,28 +200,27 @@
         return;
       }
 
+      // B. RESTART (If Crashed OR Won)
       if (!state.running || state.won) {
         reset();
         return;
       }
 
+      // C. JUMP
       if (state.running && !state.won) {
         state.player.vy = state.jumpPower;
-        state.player.angle = -0.4;
+        state.player.angle = -0.3; // Tilt up slightly
         createParticles(state.player.x, state.player.y + state.player.h);
         playJumpSound();
       }
     }
 
-    function playJumpSound() {
-        jumpAudio.currentTime = 0;
-        jumpAudio.play().catch(e => {});
-    }
-
+    // Handle interactions
     c.addEventListener('mousedown', jump);
     c.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); }, { passive: false });
 
     function reset() {
+      // STOP AUDIO INSTANTLY
       failAudio.pause(); failAudio.currentTime = 0;
       winAudio.pause();  winAudio.currentTime = 0;
       jumpAudio.pause(); jumpAudio.currentTime = 0;
@@ -231,66 +238,75 @@
       uiLayer.style.display = 'none'; 
     }
 
-    // --- LOOP ---
+    // --- 7. MAIN LOOP ---
     function loop() {
       requestAnimationFrame(loop);
-      // Clear using logical coordinates
+      // Clear screen
       ctx.clearRect(0, 0, gameW, gameH);
 
-      // 1. Draw Wood Background
+      // Draw Background Layer
       drawBackground();
 
+      // Intro Screen
       if (!state.gameStarted) {
-         // Darken bg for intro
-         ctx.fillStyle = "rgba(0,0,0,0.5)";
+         ctx.fillStyle = "rgba(0,0,0,0.5)"; // Dim background
          ctx.fillRect(0, 0, gameW, gameH);
          drawPlayer();
          return;
       }
 
+      // Win Screen
       if (state.won) {
         drawWinScene();
         return;
       }
 
+      // Fail Screen
       if (!state.running) {
         drawOverlay();
         return;
       }
 
-      // Physics
+      // --- GAME LOGIC ---
       state.spawnTimer++;
+      // Spawn walls
       if (state.spawnTimer > 110 && !state.won) {
         spawnWall();
         state.spawnTimer = 0;
       }
 
+      // Physics
       state.player.vy += state.gravity;
       state.player.y += state.player.vy;
-      state.player.angle += 0.03;
+      state.player.angle += 0.02; // Slow spin
 
+      // Floor/Ceiling collision
       if (state.player.y + state.player.h > gameH || state.player.y < 0) {
         die();
       }
 
+      // Move Walls
       state.walls.forEach(w => w.x += w.vx);
       state.walls = state.walls.filter(w => w.x + w.w > -100);
 
+      // Wall Collision
       for (const w of state.walls) {
         if (rectsOverlap(state.player, w)) die();
       }
 
+      // Score
       state.score++;
       let points = Math.floor(state.score / 100); 
       if (points >= WIN_SCORE) triggerWin();
 
+      // Draw Everything
       drawWalls();
       drawParticles();
       drawPlayer();
       drawScore(points);
     }
 
-    // --- DRAWING FUNCTIONS ---
+    // --- 8. DRAWING HELPERS ---
     
     function drawBackground() {
         if (state.running && !state.won) {
@@ -299,21 +315,22 @@
         }
         
         if (bgImg.complete) {
-            // Draw image twice to scroll it
-            ctx.filter = "brightness(0.7)"; 
+            // Draw 2 copies for infinite scroll
             ctx.drawImage(bgImg, state.bgX, 0, gameW, gameH);
             ctx.drawImage(bgImg, state.bgX + gameW, 0, gameW, gameH);
-            ctx.filter = "none"; 
+            
+            // Dark overlay to make game elements pop
+            ctx.fillStyle = "rgba(0,0,0,0.3)";
+            ctx.fillRect(0, 0, gameW, gameH);
         } else {
-            // Fallback brown
-            ctx.fillStyle = "#3e2723";
+            ctx.fillStyle = "#2d1e12";
             ctx.fillRect(0, 0, gameW, gameH);
         }
     }
 
     function spawnWall() {
-      const gap = 175;
-      const thickness = 55;
+      const gap = 180; // Easier gap for mobile playability
+      const thickness = 60;
       const speed = 5;
       const gapY = Math.random() * (gameH - gap - 100) + 50;
       state.walls.push({ x: gameW, y: 0, w: thickness, h: gapY, vx: -speed });
@@ -321,32 +338,37 @@
     }
 
     function createParticles(x, y) {
-      for(let i=0; i<5; i++) {
+      // Wood chips/Sawdust particles
+      for(let i=0; i<6; i++) {
         state.particles.push({
           x: x + Math.random()*40,
-          y: y,
-          vx: (Math.random() - 0.5) * 2,
-          vy: Math.random() * 2,
+          y: y + 40,
+          vx: (Math.random() - 0.5) * 3,
+          vy: Math.random() * 3,
           life: 1.0,
-          color: `rgba(222, 184, 135, ${Math.random()})` 
+          color: `rgba(222, 184, 135, ${Math.random()})` // Tan color
         });
       }
     }
 
     function rectsOverlap(a, b) {
-      const pad = 12;
+      const pad = 12; // Hitbox forgiveness
       return a.x + pad < b.x + b.w && a.x + a.w - pad > b.x &&
              a.y + pad < b.y + b.h && a.y + a.h - pad > b.y;
     }
 
     function drawWalls() {
-      ctx.shadowBlur = 0;
       for (const w of state.walls) {
+        // Log Color
         ctx.fillStyle = "#3E2723"; 
         ctx.fillRect(w.x, w.y, w.w, w.h);
+        
+        // Bark Border
         ctx.lineWidth = 3;
         ctx.strokeStyle = "#8D6E63"; 
         ctx.strokeRect(w.x, w.y, w.w, w.h);
+        
+        // Shadow depth
         ctx.fillStyle = "rgba(0,0,0,0.4)";
         ctx.fillRect(w.x + 5, w.y + 5, w.w - 10, w.h - 10);
       }
@@ -363,7 +385,7 @@
           ctx.fillStyle = p.color;
           ctx.globalAlpha = p.life;
           ctx.beginPath();
-          ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+          ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
           ctx.fill();
           ctx.globalAlpha = 1.0;
         }
@@ -371,7 +393,8 @@
     }
 
     function drawScore(points) {
-      ctx.fillStyle = "rgba(40, 30, 20, 0.7)"; 
+      // Wood Plaque Scoreboard
+      ctx.fillStyle = "rgba(40, 30, 20, 0.8)"; 
       ctx.beginPath();
       if (ctx.roundRect) ctx.roundRect(15, 15, 140, 50, 10);
       else ctx.rect(15, 15, 140, 50);
@@ -392,18 +415,23 @@
       ctx.save();
       ctx.translate(state.player.x + state.player.w/2, state.player.y + state.player.h/2);
       ctx.rotate(state.player.angle);
-      // Glow
+      
+      // Shadow
       ctx.shadowColor = "rgba(0,0,0,0.8)";
       ctx.shadowBlur = 15;
+
       if (playerImg.complete) {
+        // Circle Mask
         ctx.beginPath();
         ctx.arc(0, 0, state.player.w/2, 0, Math.PI*2);
         ctx.clip();
         ctx.drawImage(playerImg, -state.player.w/2, -state.player.h/2, state.player.w, state.player.h);
+        
+        // Gold Ring
         ctx.beginPath();
         ctx.arc(0, 0, state.player.w/2, 0, Math.PI*2);
         ctx.strokeStyle = "#FFD700"; 
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 4;
         ctx.stroke();
       } else {
         ctx.fillStyle = "#ff4757";
@@ -447,14 +475,20 @@
     function drawWinScene() {
       const targetX = gameW / 2 - 60;
       const targetY = gameH / 2;
+      
+      // Move player to center
       state.player.x += (targetX - state.player.x) * 0.05;
       state.player.y += (targetY - state.player.y) * 0.05;
       state.player.angle = 0;
+      
       drawBackground(); 
       drawPlayer();
+      
       const prizeX = gameW / 2 + 20;
       const prizeY = gameH / 2 - 40;
       const prizeSize = 80;
+      
+      // Draw Prize
       ctx.save();
       ctx.shadowColor = "#FFD700";
       ctx.shadowBlur = 30;
@@ -471,6 +505,7 @@
       }
       ctx.restore();
       
+      // Victory Text
       ctx.fillStyle = "#FFD700"; 
       ctx.font = "900 40px sans-serif";
       ctx.textAlign = "center";
@@ -483,6 +518,7 @@
       ctx.font = "300 18px sans-serif";
       ctx.fillText("Tap to Play Again", gameW/2, gameH/2 + 50);
 
+      // Heart
       if (Math.abs(state.player.x - targetX) < 5) {
          ctx.font = "40px sans-serif";
          ctx.fillText("❤️", gameW/2, gameH/2 + 10);
