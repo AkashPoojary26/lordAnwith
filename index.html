@@ -22,27 +22,23 @@
   <div id="msg">Tap to Start<br><small>Reach Score 10 to Win!</small></div>
   <div id="debug"></div>
   <canvas id="game"></canvas>
-  <script>
+ <script>
     const c = document.getElementById('game');
     const ctx = c.getContext('2d');
     const debugDiv = document.getElementById('debug');
 
     // --- ASSETS ---
-    // 1. Player
     const playerImg = new Image();
     playerImg.src = "assets/an.jpeg"; 
 
-    // 2. Fail Sound
     const failAudio = new Audio();
     failAudio.src = "assets/ad2.mp3"; 
 
-    // 3. WIN Image (New!)
     const winImg = new Image();
-    winImg.src = "assets/kaup.jpeg"; // <--- PUT THE FINAL IMAGE HERE
+    winImg.src = "assets/kaup.jpeg"; 
 
-    // 4. WIN Sound (New!)
     const winAudio = new Audio();
-    winAudio.src = "assets/ad1.mp3"; // <--- PUT VICTORY MUSIC HERE
+    winAudio.src = "assets/ad1.mp3"; 
 
     // Debugging
     failAudio.onerror = () => { debugDiv.innerText = "Error: Missing fail sound"; };
@@ -57,13 +53,13 @@
     resize();
 
     // Game Config
-    const WIN_SCORE = 10; // <--- CHANGE THIS TO SET LENGTH OF GAME
+    const WIN_SCORE = 10; // Reach 10 points to win
 
     // Game state
     const state = {
       running: false, 
       gameStarted: false,
-      won: false,          // New 'won' state
+      won: false,
       gravity: 0.6,
       jumpPower: -10,
       player: { x: 60, y: c.height/2, w: 50, h: 50, vy: 0, angle: 0 },
@@ -84,7 +80,6 @@
         
         // Unlock Audio
         if (!audioUnlocked) {
-          // Play both silently to unlock browser permissions
           failAudio.volume = 0; failAudio.play().then(() => { failAudio.pause(); failAudio.currentTime=0; failAudio.volume=1; });
           winAudio.volume = 0; winAudio.play().then(() => { winAudio.pause(); winAudio.currentTime=0; winAudio.volume=1; });
           audioUnlocked = true;
@@ -99,7 +94,7 @@
         return;
       }
 
-      // 3. Normal Jump (Only if running and NOT won yet)
+      // 3. Normal Jump
       if (state.running && !state.won) {
         state.player.vy = state.jumpPower;
         state.player.angle = -0.5;
@@ -113,7 +108,7 @@
       state.running = true;
       state.won = false;
       state.player.y = c.height / 2;
-      state.player.x = 60; // Reset X position
+      state.player.x = 60; 
       state.player.vy = 0;
       state.player.angle = 0;
       state.walls = [];
@@ -158,8 +153,9 @@
 
       // --- GAME LOGIC ---
       state.spawnTimer++;
-      // Spawn walls only if we haven't reached win score
-      if (state.spawnTimer > 100 && state.score < WIN_SCORE) {
+      
+      // *** FIX IS HERE: Only check if we haven't won yet ***
+      if (state.spawnTimer > 100 && !state.won) {
         spawnWall();
         state.spawnTimer = 0;
       }
@@ -183,13 +179,11 @@
         if (rectsOverlap(state.player, w)) die();
       }
 
-      // Score
+      // Score Calculation
       state.score++;
-
-      // --- CHECK WIN CONDITION ---
-      // We convert score (frames) to 'points' roughly
       let points = Math.floor(state.score / 100); 
-      // Force win logic based on walls passed (simplified: time based)
+
+      // Win Condition
       if (points >= WIN_SCORE) {
         triggerWin();
       }
@@ -242,39 +236,28 @@
       ctx.restore();
     }
 
-    // --- DEATH ---
     function die() {
       state.running = false;
       failAudio.currentTime = 0; failAudio.play().catch(e=>{});
-      
-      // Delay click to restart
-      setTimeout(() => {
-        // Just ensures we don't restart instantly on accidental double tap
-      }, 500);
     }
 
-    // --- WIN LOGIC ---
     function triggerWin() {
       state.won = true;
-      state.walls = []; // Clear walls immediately
+      state.walls = []; 
       winAudio.currentTime = 0; 
       winAudio.play().catch(e=>{});
     }
 
     function drawWinScene() {
-      // 1. Move Player to center (Animation)
       const targetX = c.width / 2 - 60;
       const targetY = c.height / 2;
       
-      // Smooth slide
       state.player.x += (targetX - state.player.x) * 0.05;
       state.player.y += (targetY - state.player.y) * 0.05;
-      state.player.angle = 0; // Straighten up
+      state.player.angle = 0;
 
-      // 2. Draw Player
       drawPlayer();
 
-      // 3. Draw The "Prize" Image (Right side)
       const prizeX = c.width / 2 + 20;
       const prizeY = c.height / 2 - 40;
       const prizeSize = 80;
@@ -286,13 +269,11 @@
         ctx.fillRect(prizeX, prizeY, prizeSize, prizeSize);
       }
 
-      // 4. Text
       ctx.fillStyle = "#4ef2a8";
       ctx.font = "bold 40px system-ui";
       ctx.textAlign = "center";
       ctx.fillText("YOU DID IT!", c.width/2, c.height/2 - 80);
       
-      // Heart between them
       if (Math.abs(state.player.x - targetX) < 5) {
          ctx.font = "40px system-ui";
          ctx.fillText("❤️", c.width/2, c.height/2);
