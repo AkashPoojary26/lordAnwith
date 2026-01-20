@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Friend Jump - Final Version</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    html, body { margin:0; height:100%; background:#1a1a1a; overflow: hidden; }
+    canvas { display:block; margin:auto; background: #222; max-width:600px; width:100%; height:100vh; }
+    #msg {
+      position:fixed; left:50%; top:20px; transform:translateX(-50%);
+      color:#fff; font:bold 20px system-ui; text-align: center; pointer-events: none;
+      text-shadow: 0px 2px 4px rgba(0,0,0,0.8);
+      z-index: 10;
+    }
+    #debug {
+      position:fixed; bottom:10px; left:10px; color:yellow; font-family:monospace; font-size:12px; pointer-events:none;
+    }
+  </style>
+</head>
+<body>
+  <div id="msg">Tap to Start<br><small>Reach Score 10 to Win!</small></div>
+  <div id="debug"></div>
+  <canvas id="game"></canvas>
+  <script>
+    const c = document.getElementById('game');
+    const ctx = c.getContext('2d');
+    const debugDiv = document.getElementById('debug');
+
+    // --- ASSETS ---
+    // 1. Player
+    const playerImg = new Image();
+    playerImg.src = "assets/an.jpeg"; 
+
+    // 2. Fail Sound
+    const failAudio = new Audio();
+    failAudio.src = "assets/ad2.mp3"; 
+
+    // 3. WIN Image (New!)
+    const winImg = new Image();
+    winImg.src = "assets/kaup.jpeg"; // <--- PUT THE FINAL IMAGE HERE
+
+    // 4. WIN Sound (New!)
+    const winAudio = new Audio();
+    winAudio.src = "assets/ad1.mp3"; // <--- PUT VICTORY MUSIC HERE
+
+    // Debugging
+    failAudio.onerror = () => { debugDiv.innerText = "Error: Missing fail sound"; };
+    winAudio.onerror = () => { debugDiv.innerText = "Error: Missing win sound"; };
+
+    // Resize
+    function resize() {
+      c.width = Math.min(window.innerWidth, 600);
+      c.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Game Config
+    const WIN_SCORE = 10; // <--- CHANGE THIS TO SET LENGTH OF GAME
+
+    // Game state
+    const state = {
+      running: false, 
+      gameStarted: false,
+      won: false,          // New 'won' state
+      gravity: 0.6,
+      jumpPower: -10,
+      player: { x: 60, y: c.height/2, w: 50, h: 50, vy: 0, angle: 0 },
+      walls: [],
+      score: 0,
+      spawnTimer: 0
+    };
+
+    let audioUnlocked = false;
+
+    // --- CONTROLS ---
+    function jump() {
+      // 1. Start Game
+      if (!state.gameStarted) {
+        state.gameStarted = true;
+        state.running = true;
+        document.getElementById('msg').innerText = "";
+        
+        // Unlock Audio
+        if (!audioUnlocked) {
+          // Play both silently to unlock browser permissions
+          failAudio.volume = 0; failAudio.play().then(() => { failAudio.pause(); failAudio.currentTime=0; failAudio.volume=1; });
+          winAudio.volume = 0; winAudio.play().then(() => { winAudio.pause(); winAudio.currentTime=0; winAudio.volume=1; });
+          audioUnlocked = true;
+        }
+        state.player.vy = state.jumpPower;
+        return;
+      }
+
+      // 2. Restart if lost
+      if (!state.running && !state.won) {
+        reset();
+        return;
+      }
+
+      // 3. Normal Jump (Only if running and NOT won yet)
+      if (state.running && !state.won) {
+        state.player.vy = state.jumpPower;
+        state.player.angle = -0.5;
+      }
+    }
+
+    c.addEventListener('mousedown', jump);
+    c.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); }, { passive:false });
+
+    function reset() {
+      state.running = true;
+      state.won = false;
+      state.player.y = c.height / 2;
+      state.player.x = 60; // Reset X position
+      state.player.vy = 0;
+      state.player.angle = 0;
+      state.walls = [];
+      state.score = 0;
+      state.spawnTimer = 0;
+      document.getElementById('msg').innerText = "";
+    }
+
+    // --- MAIN LOOP ---
+    function loop() {
+      requestAnimationFrame(loop);
+      ctx.clearRect(0, 0, c.width, c.height);
+
+      // Intro Screen
+      if (!state.gameStarted) {
+         ctx.fillStyle = "#fff";
+         ctx.font = "20px system-ui";
+         ctx.textAlign = "center";
+         ctx.fillText("Tap screen to start", c.width/2, c.height/2);
+         drawPlayer();
+         return;
+      }
+
+      // --- WINNING SCENE ---
+      if (state.won) {
+        drawWinScene();
+        return;
+      }
+
+      // --- LOSING SCREEN ---
+      if (!state.running) {
+        ctx.fillStyle = "white";
+        ctx.font = "30px system-ui";
+        ctx.textAlign = "center";
+        ctx.fillText("💀 RIP 💀", c.width/2, c.height/2);
+        ctx.font = "20px system-ui";
+        ctx.fillText("Tap to Retry", c.width/2, c.height/2 + 40);
+        drawPlayer();
+        drawWalls();
+        return;
+      }
+
+      // --- GAME LOGIC ---
+      state.spawnTimer++;
+      // Spawn walls only if we haven't reached win score
+      if (state.spawnTimer > 100 && state.score < WIN_SCORE) {
+        spawnWall();
+        state.spawnTimer = 0;
+      }
+
+      // Gravity
+      state.player.vy += state.gravity;
+      state.player.y += state.player.vy;
+      if (state.player.angle < 0.5) state.player.angle += 0.05;
+
+      // Die conditions
+      if (state.player.y + state.player.h > c.height || state.player.y < 0) {
+        die();
+      }
+
+      // Move Walls
+      state.walls.forEach(w => w.x += w.vx);
+      state.walls = state.walls.filter(w => w.x + w.w > -100);
+
+      // Check Collision
+      for (const w of state.walls) {
+        if (rectsOverlap(state.player, w)) die();
+      }
+
+      // Score
+      state.score++;
+
+      // --- CHECK WIN CONDITION ---
+      // We convert score (frames) to 'points' roughly
+      let points = Math.floor(state.score / 100); 
+      // Force win logic based on walls passed (simplified: time based)
+      if (points >= WIN_SCORE) {
+        triggerWin();
+      }
+
+      drawWalls();
+      drawPlayer();
+
+      // Draw Score
+      ctx.fillStyle = "#fff";
+      ctx.font = "20px monospace";
+      ctx.textAlign = "left";
+      ctx.fillText("Score: " + points + " / " + WIN_SCORE, 10, 30);
+    }
+
+    // --- HELPERS ---
+    function spawnWall() {
+      const gap = 150;
+      const thickness = 60;
+      const speed = 5;
+      const gapY = Math.random() * (c.height - gap - 100) + 50;
+      state.walls.push({ x: c.width, y: 0, w: thickness, h: gapY, vx: -speed });
+      state.walls.push({ x: c.width, y: gapY + gap, w: thickness, h: c.height - (gapY + gap), vx: -speed });
+    }
+
+    function rectsOverlap(a, b) {
+      const pad = 8;
+      return a.x + pad < b.x + b.w && a.x + a.w - pad > b.x &&
+             a.y + pad < b.y + b.h && a.y + a.h - pad > b.y;
+    }
+
+    function drawWalls() {
+      ctx.fillStyle = "#888"; 
+      for (const w of state.walls) {
+        ctx.fillRect(w.x, w.y, w.w, w.h);
+        ctx.strokeStyle = "#000";
+        ctx.strokeRect(w.x, w.y, w.w, w.h);
+      }
+    }
+
+    function drawPlayer() {
+      ctx.save();
+      ctx.translate(state.player.x + state.player.w/2, state.player.y + state.player.h/2);
+      ctx.rotate(state.player.angle);
+      if (playerImg.complete) {
+        ctx.drawImage(playerImg, -state.player.w/2, -state.player.h/2, state.player.w, state.player.h);
+      } else {
+        ctx.fillStyle = "red";
+        ctx.fillRect(-state.player.w/2, -state.player.h/2, state.player.w, state.player.h);
+      }
+      ctx.restore();
+    }
+
+    // --- DEATH ---
+    function die() {
+      state.running = false;
+      failAudio.currentTime = 0; failAudio.play().catch(e=>{});
+      
+      // Delay click to restart
+      setTimeout(() => {
+        // Just ensures we don't restart instantly on accidental double tap
+      }, 500);
+    }
+
+    // --- WIN LOGIC ---
+    function triggerWin() {
+      state.won = true;
+      state.walls = []; // Clear walls immediately
+      winAudio.currentTime = 0; 
+      winAudio.play().catch(e=>{});
+    }
+
+    function drawWinScene() {
+      // 1. Move Player to center (Animation)
+      const targetX = c.width / 2 - 60;
+      const targetY = c.height / 2;
+      
+      // Smooth slide
+      state.player.x += (targetX - state.player.x) * 0.05;
+      state.player.y += (targetY - state.player.y) * 0.05;
+      state.player.angle = 0; // Straighten up
+
+      // 2. Draw Player
+      drawPlayer();
+
+      // 3. Draw The "Prize" Image (Right side)
+      const prizeX = c.width / 2 + 20;
+      const prizeY = c.height / 2 - 40;
+      const prizeSize = 80;
+
+      if (winImg.complete) {
+        ctx.drawImage(winImg, prizeX, prizeY, prizeSize, prizeSize);
+      } else {
+        ctx.fillStyle = "gold";
+        ctx.fillRect(prizeX, prizeY, prizeSize, prizeSize);
+      }
+
+      // 4. Text
+      ctx.fillStyle = "#4ef2a8";
+      ctx.font = "bold 40px system-ui";
+      ctx.textAlign = "center";
+      ctx.fillText("YOU DID IT!", c.width/2, c.height/2 - 80);
+      
+      // Heart between them
+      if (Math.abs(state.player.x - targetX) < 5) {
+         ctx.font = "40px system-ui";
+         ctx.fillText("❤️", c.width/2, c.height/2);
+      }
+    }
+
+    loop();
+  </script>
+</body>
+</html>
