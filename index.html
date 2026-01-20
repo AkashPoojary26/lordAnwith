@@ -179,13 +179,14 @@
         return;
       }
 
-      // 2. RESTART
-      if (!state.running && !state.won) {
+      // 2. RESTART (If Crashed OR If Won)
+      // FIX: Added "|| state.won" so you can restart after winning
+      if (!state.running || state.won) {
         reset();
         return;
       }
 
-      // 3. JUMP
+      // 3. JUMP (INGAME)
       if (state.running && !state.won) {
         state.player.vy = state.jumpPower;
         state.player.angle = -0.4;
@@ -207,11 +208,10 @@
     }, { passive: false });
 
     function reset() {
-      // --- FIX: STOP AUDIO IMMEDIATELY ---
-      failAudio.pause();
-      failAudio.currentTime = 0;
-      winAudio.pause();
-      winAudio.currentTime = 0;
+      // FIX: Stop all audio instantly
+      failAudio.pause(); failAudio.currentTime = 0;
+      winAudio.pause();  winAudio.currentTime = 0;
+      jumpAudio.pause(); jumpAudio.currentTime = 0;
 
       state.running = true;
       state.won = false;
@@ -440,9 +440,15 @@
       ctx.shadowColor = "#4ef2a8";
       ctx.shadowBlur = 20;
       ctx.fillText("VICTORY!", c.width/2, c.height/2 - 100);
+      
+      // FIX: Added Text here so user knows they can tap
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "#fff";
+      ctx.font = "300 18px sans-serif";
+      ctx.fillText("Tap to Play Again", c.width/2, c.height/2 + 50);
+
       if (Math.abs(state.player.x - targetX) < 5) {
          ctx.font = "40px sans-serif";
-         ctx.shadowBlur = 0;
          ctx.fillText("❤️", c.width/2, c.height/2 + 10);
       }
     }
