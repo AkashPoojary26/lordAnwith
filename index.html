@@ -11,26 +11,20 @@
       height: 100vh; 
       width: 100vw;
       overflow: hidden; 
-      background: linear-gradient(-45deg, #0f2027, #203a43, #2c5364); 
-      background-size: 400% 400%;
-      animation: gradientBG 15s ease infinite;
+      /* REPLACED GRADIENT WITH DARK FALLBACK COLOR */
+      background: #0f2027; 
       font-family: system-ui, -apple-system, sans-serif;
       touch-action: none; 
       -webkit-user-select: none; 
       user-select: none;
     }
 
-    @keyframes gradientBG {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
-    }
+    /* REMOVED OLD GRADIENT ANIMATION KEYFRAMES */
 
     canvas { 
       display: block; 
       margin: auto; 
-      background: rgba(0, 0, 0, 0.2); 
-      backdrop-filter: blur(5px);
+      /* REMOVED GLASS EFFECT - Canvas now draws its own background */
       max-width: 600px; 
       width: 100%; 
       height: 100%; 
@@ -51,7 +45,7 @@
     #start-msg {
       text-align: center;
       color: #fff;
-      text-shadow: 0 4px 12px rgba(0,0,0,0.6);
+      text-shadow: 0 4px 12px rgba(0,0,0,0.8);
       animation: float 3s ease-in-out infinite;
     }
 
@@ -62,13 +56,15 @@
       background: -webkit-linear-gradient(#fff, #bbb);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 2px 5px rgba(0,0,0,0.5));
     }
 
     p {
       font-size: 1.2rem;
       margin-top: 10px;
-      font-weight: 300;
-      color: #ccc;
+      font-weight: 600;
+      color: #eee;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
     }
 
     @keyframes float {
@@ -106,7 +102,15 @@
 
     // --- ASSETS ---
     const playerImg = new Image();
+    // IMPORTANT: MAKE SURE YOUR PLAYER IMAGE NAME IS CORRECT HERE
     playerImg.src = "assets/anwi13.jpg"; 
+
+    // *** NEW BACKGROUND ASSET ***
+    const bgImg = new Image();
+    // I am using a placeholder online image so it works immediately.
+    // Replace this with your local image like: "assets/wood_bg.jpg"
+    bgImg.src = "https://images.unsplash.com/photo-1542202229-7d93c33f5d07?q=80&w=1000&auto=format&fit=crop";
+    // A dark forest looks good.
 
     // SOUNDS
     const failAudio = new Audio();
@@ -139,12 +143,14 @@
       won: false,
       gravity: 0.55,
       jumpPower: -9.5,
-      // --- FIX: Changed Size from 50 to 70 here ---
       player: { x: 60, y: c.height/2, w: 70, h: 70, vy: 0, angle: 0 },
       walls: [],
       particles: [],
       score: 0,
-      spawnTimer: 0
+      spawnTimer: 0,
+      // *** NEW BACKGROUND STATE ***
+      bgX: 0,
+      bgSpeed: 2 // Background moves slower than walls for depth effect
     };
 
     let audioUnlocked = false;
@@ -180,7 +186,7 @@
         return;
       }
 
-      // 2. RESTART (If Crashed OR If Won)
+      // 2. RESTART
       if (!state.running || state.won) {
         reset();
         return;
@@ -208,7 +214,6 @@
     }, { passive: false });
 
     function reset() {
-      // FIX: Stop all audio instantly
       failAudio.pause(); failAudio.currentTime = 0;
       winAudio.pause();  winAudio.currentTime = 0;
       jumpAudio.pause(); jumpAudio.currentTime = 0;
@@ -231,8 +236,14 @@
       requestAnimationFrame(loop);
       ctx.clearRect(0, 0, c.width, c.height);
 
+      // 1. DRAW BACKGROUND FIRST (Behind everything)
+      drawBackground();
+
       if (!state.gameStarted) {
          drawPlayer();
+         // Darken background slightly on start screen for text readability
+         ctx.fillStyle = "rgba(0,0,0,0.4)";
+         ctx.fillRect(0,0,c.width,c.height);
          return;
       }
 
@@ -273,11 +284,34 @@
 
       if (points >= WIN_SCORE) triggerWin();
 
-      // Drawing
+      // Drawing elements on top of background
       drawWalls();
       drawParticles();
       drawPlayer();
       drawScore(points);
+    }
+
+    // --- NEW BACKGROUND DRAWER ---
+    function drawBackground() {
+        // Move background if game is running
+        if (state.running && !state.won) {
+            state.bgX -= state.bgSpeed;
+            // Reset position for seamless loop
+            if (state.bgX <= -c.width) {
+                state.bgX = 0;
+            }
+        }
+
+        if (bgImg.complete) {
+            // Draw image twice side-by-side to fill screen while scrolling
+            // We stretch the image to fit the canvas height
+            ctx.drawImage(bgImg, state.bgX, 0, c.width, c.height);
+            ctx.drawImage(bgImg, state.bgX + c.width, 0, c.width, c.height);
+        } else {
+            // Fallback color if image hasn't loaded
+            ctx.fillStyle = "#0f2027";
+            ctx.fillRect(0,0,c.width, c.height);
+        }
     }
 
     // --- HELPERS ---
@@ -415,6 +449,7 @@
       state.player.x += (targetX - state.player.x) * 0.05;
       state.player.y += (targetY - state.player.y) * 0.05;
       state.player.angle = 0;
+      drawBackground(); // Keep background visible
       drawPlayer();
       const prizeX = c.width / 2 + 20;
       const prizeY = c.height / 2 - 40;
@@ -441,7 +476,6 @@
       ctx.shadowBlur = 20;
       ctx.fillText("VICTORY!", c.width/2, c.height/2 - 100);
       
-      // FIX: Added Text here so user knows they can tap
       ctx.shadowBlur = 0;
       ctx.fillStyle = "#fff";
       ctx.font = "300 18px sans-serif";
