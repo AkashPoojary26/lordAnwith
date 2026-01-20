@@ -11,7 +11,6 @@
       height: 100vh; 
       width: 100vw;
       overflow: hidden; 
-      /* Fallback dark brown if image takes a moment */
       background: #2d1e12; 
       font-family: system-ui, -apple-system, sans-serif;
       touch-action: none; 
@@ -22,9 +21,8 @@
     canvas { 
       display: block; 
       margin: auto; 
-      max-width: 600px; 
-      width: 100%; 
-      height: 100%; 
+      /* We remove width/height here because JS handles it for sharpness */
+      touch-action: none;
     }
 
     #ui-layer {
@@ -42,7 +40,6 @@
     #start-msg {
       text-align: center;
       color: #fff;
-      /* Heavy shadow to make text pop against the wood background */
       text-shadow: 0 4px 15px rgba(0,0,0,0.9);
       animation: float 3s ease-in-out infinite;
     }
@@ -51,7 +48,6 @@
       font-size: 3rem;
       margin: 0;
       font-weight: 800;
-      /* Gold/Wood Gradient for Text */
       background: -webkit-linear-gradient(#fff, #ffc107);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
@@ -62,7 +58,6 @@
       font-size: 1.2rem;
       margin-top: 10px;
       font-weight: 700;
-      /* Bright Amber color to match wood theme */
       color: #ffca28; 
       text-shadow: 0 2px 4px rgba(0,0,0,1);
     }
@@ -106,7 +101,7 @@
 
     // *** BACKGROUND IMAGE ***
     const bgImg = new Image();
-    bgImg.src = "assets/wood.jpg"; // Your wood pile image
+    bgImg.src = "assets/wood.jpg"; 
 
     // SOUNDS
     const failAudio = new Audio();
@@ -121,16 +116,33 @@
     const winImg = new Image();
     winImg.src = "assets/kaup.jpg"; 
 
-    // Resize
+    // --- HIGH-DPI RESIZE FIX ---
+    let gameW, gameH; // We use these instead of c.width/c.height in logic
+
     function resize() {
-      c.width = Math.min(window.innerWidth, 600);
-      c.height = window.innerHeight;
+      // 1. Get the screen's pixel density (usually 2 or 3 on mobile)
+      const dpr = window.devicePixelRatio || 1;
+      
+      // 2. Calculate the Logical Size (CSS Size)
+      gameW = Math.min(window.innerWidth, 600);
+      gameH = window.innerHeight;
+
+      // 3. Set the Internal Resolution to High Quality
+      c.width = gameW * dpr;
+      c.height = gameH * dpr;
+
+      // 4. Force the CSS Size to stay normal
+      c.style.width = gameW + "px";
+      c.style.height = gameH + "px";
+
+      // 5. Scale the drawing context so logic coordinates don't break
+      ctx.scale(dpr, dpr);
     }
     window.addEventListener('resize', resize);
     resize();
 
     // Config
-    const WIN_SCORE = 3; 
+    const WIN_SCORE = 10; 
 
     // Game state
     const state = {
@@ -139,14 +151,18 @@
       won: false,
       gravity: 0.55,
       jumpPower: -9.5,
-      player: { x: 60, y: c.height/2, w: 50, h: 50, vy: 0, angle: 0 },
+      // Use gameH instead of c.height for logic
+      player: { x: 60, y: 0, w: 70, h: 70, vy: 0, angle: 0 }, 
       walls: [],
       particles: [],
       score: 0,
       spawnTimer: 0,
       bgX: 0,
-      bgSpeed: 1.5 // Slow parallax scroll
+      bgSpeed: 1.5 
     };
+    
+    // Initialize player position based on new gameH
+    state.player.y = gameH / 2;
 
     let audioUnlocked = false;
 
@@ -204,7 +220,7 @@
 
       state.running = true;
       state.won = false;
-      state.player.y = c.height / 2;
+      state.player.y = gameH / 2;
       state.player.x = 60; 
       state.player.vy = 0;
       state.player.angle = 0;
@@ -218,7 +234,8 @@
     // --- LOOP ---
     function loop() {
       requestAnimationFrame(loop);
-      ctx.clearRect(0, 0, c.width, c.height);
+      // Clear using logical coordinates
+      ctx.clearRect(0, 0, gameW, gameH);
 
       // 1. Draw Wood Background
       drawBackground();
@@ -226,7 +243,7 @@
       if (!state.gameStarted) {
          // Darken bg for intro
          ctx.fillStyle = "rgba(0,0,0,0.5)";
-         ctx.fillRect(0,0,c.width,c.height);
+         ctx.fillRect(0, 0, gameW, gameH);
          drawPlayer();
          return;
       }
@@ -252,7 +269,7 @@
       state.player.y += state.player.vy;
       state.player.angle += 0.03;
 
-      if (state.player.y + state.player.h > c.height || state.player.y < 0) {
+      if (state.player.y + state.player.h > gameH || state.player.y < 0) {
         die();
       }
 
@@ -278,20 +295,19 @@
     function drawBackground() {
         if (state.running && !state.won) {
             state.bgX -= state.bgSpeed;
-            if (state.bgX <= -c.width) state.bgX = 0;
+            if (state.bgX <= -gameW) state.bgX = 0;
         }
         
         if (bgImg.complete) {
             // Draw image twice to scroll it
-            // We darken it slightly with a filter so game elements pop
             ctx.filter = "brightness(0.7)"; 
-            ctx.drawImage(bgImg, state.bgX, 0, c.width, c.height);
-            ctx.drawImage(bgImg, state.bgX + c.width, 0, c.width, c.height);
-            ctx.filter = "none"; // Reset filter
+            ctx.drawImage(bgImg, state.bgX, 0, gameW, gameH);
+            ctx.drawImage(bgImg, state.bgX + gameW, 0, gameW, gameH);
+            ctx.filter = "none"; 
         } else {
             // Fallback brown
             ctx.fillStyle = "#3e2723";
-            ctx.fillRect(0,0,c.width, c.height);
+            ctx.fillRect(0, 0, gameW, gameH);
         }
     }
 
@@ -299,9 +315,9 @@
       const gap = 175;
       const thickness = 55;
       const speed = 5;
-      const gapY = Math.random() * (c.height - gap - 100) + 50;
-      state.walls.push({ x: c.width, y: 0, w: thickness, h: gapY, vx: -speed });
-      state.walls.push({ x: c.width, y: gapY + gap, w: thickness, h: c.height - (gapY + gap), vx: -speed });
+      const gapY = Math.random() * (gameH - gap - 100) + 50;
+      state.walls.push({ x: gameW, y: 0, w: thickness, h: gapY, vx: -speed });
+      state.walls.push({ x: gameW, y: gapY + gap, w: thickness, h: gameH - (gapY + gap), vx: -speed });
     }
 
     function createParticles(x, y) {
@@ -312,7 +328,6 @@
           vx: (Math.random() - 0.5) * 2,
           vy: Math.random() * 2,
           life: 1.0,
-          // SAWDUST COLOR (Light Wood/Tan)
           color: `rgba(222, 184, 135, ${Math.random()})` 
         });
       }
@@ -327,16 +342,11 @@
     function drawWalls() {
       ctx.shadowBlur = 0;
       for (const w of state.walls) {
-        // WALL COLOR: Dark Bark Brown
         ctx.fillStyle = "#3E2723"; 
         ctx.fillRect(w.x, w.y, w.w, w.h);
-        
-        // BORDER COLOR: Light Cut Wood
         ctx.lineWidth = 3;
         ctx.strokeStyle = "#8D6E63"; 
         ctx.strokeRect(w.x, w.y, w.w, w.h);
-        
-        // Inner shadow
         ctx.fillStyle = "rgba(0,0,0,0.4)";
         ctx.fillRect(w.x + 5, w.y + 5, w.w - 10, w.h - 10);
       }
@@ -353,7 +363,7 @@
           ctx.fillStyle = p.color;
           ctx.globalAlpha = p.life;
           ctx.beginPath();
-          ctx.arc(p.x, p.y, 3, 0, Math.PI*2); // Slightly bigger particles
+          ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
           ctx.fill();
           ctx.globalAlpha = 1.0;
         }
@@ -361,14 +371,12 @@
     }
 
     function drawScore(points) {
-      // Semi-transparent dark wood background for score
       ctx.fillStyle = "rgba(40, 30, 20, 0.7)"; 
       ctx.beginPath();
       if (ctx.roundRect) ctx.roundRect(15, 15, 140, 50, 10);
       else ctx.rect(15, 15, 140, 50);
       ctx.fill();
       
-      // Gold border
       ctx.strokeStyle = "#FFC107";
       ctx.lineWidth = 2;
       ctx.stroke();
@@ -394,7 +402,6 @@
         ctx.drawImage(playerImg, -state.player.w/2, -state.player.h/2, state.player.w, state.player.h);
         ctx.beginPath();
         ctx.arc(0, 0, state.player.w/2, 0, Math.PI*2);
-        // Gold Border for player
         ctx.strokeStyle = "#FFD700"; 
         ctx.lineWidth = 3;
         ctx.stroke();
@@ -409,19 +416,19 @@
 
     function drawOverlay() {
         ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
-        ctx.fillRect(0,0,c.width, c.height);
+        ctx.fillRect(0, 0, gameW, gameH);
         
         ctx.fillStyle = "#ff5252";
         ctx.font = "900 48px sans-serif";
         ctx.textAlign = "center";
         ctx.shadowColor = "#ff0000";
         ctx.shadowBlur = 20;
-        ctx.fillText("CRASHED", c.width/2, c.height/2 - 20);
+        ctx.fillText("CRASHED", gameW/2, gameH/2 - 20);
         
         ctx.shadowBlur = 0;
         ctx.fillStyle = "#fff";
         ctx.font = "300 18px sans-serif";
-        ctx.fillText("Tap anywhere to retry", c.width/2, c.height/2 + 30);
+        ctx.fillText("Tap anywhere to retry", gameW/2, gameH/2 + 30);
     }
 
     function die() {
@@ -438,15 +445,15 @@
     }
 
     function drawWinScene() {
-      const targetX = c.width / 2 - 60;
-      const targetY = c.height / 2;
+      const targetX = gameW / 2 - 60;
+      const targetY = gameH / 2;
       state.player.x += (targetX - state.player.x) * 0.05;
       state.player.y += (targetY - state.player.y) * 0.05;
       state.player.angle = 0;
       drawBackground(); 
       drawPlayer();
-      const prizeX = c.width / 2 + 20;
-      const prizeY = c.height / 2 - 40;
+      const prizeX = gameW / 2 + 20;
+      const prizeY = gameH / 2 - 40;
       const prizeSize = 80;
       ctx.save();
       ctx.shadowColor = "#FFD700";
@@ -464,21 +471,21 @@
       }
       ctx.restore();
       
-      ctx.fillStyle = "#FFD700"; // Gold Text
+      ctx.fillStyle = "#FFD700"; 
       ctx.font = "900 40px sans-serif";
       ctx.textAlign = "center";
       ctx.shadowColor = "#FFD700";
       ctx.shadowBlur = 10;
-      ctx.fillText("VICTORY!", c.width/2, c.height/2 - 100);
+      ctx.fillText("VICTORY!", gameW/2, gameH/2 - 100);
       
       ctx.shadowBlur = 0;
       ctx.fillStyle = "#fff";
       ctx.font = "300 18px sans-serif";
-      ctx.fillText("Tap to Play Again", c.width/2, c.height/2 + 50);
+      ctx.fillText("Tap to Play Again", gameW/2, gameH/2 + 50);
 
       if (Math.abs(state.player.x - targetX) < 5) {
          ctx.font = "40px sans-serif";
-         ctx.fillText("❤️", c.width/2, c.height/2 + 10);
+         ctx.fillText("❤️", gameW/2, gameH/2 + 10);
       }
     }
 
