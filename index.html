@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Lord Anwith - Wood Edition</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Lord Anwith</title>
+  <link rel="icon" type="image/jpeg" href="assets/anwi13.jpg">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <style>
     /* 1. Mobile Optimization */
     body { 
@@ -42,12 +43,16 @@
       text-align: center;
       color: #fff;
       text-shadow: 0 4px 15px rgba(0,0,0,0.9);
-      animation: float 3s ease-in-out infinite;
+      pointer-events: auto; 
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
 
     h1 {
       font-size: 3rem;
       margin: 0;
+      margin-bottom: 5px;
       font-weight: 800;
       background: -webkit-linear-gradient(#fff, #ffc107);
       -webkit-background-clip: text;
@@ -55,29 +60,65 @@
       filter: drop-shadow(0 4px 4px rgba(0,0,0,0.8));
     }
 
-    p {
-      font-size: 1.2rem;
-      margin-top: 10px;
-      font-weight: 700;
-      color: #ffca28; 
-      text-shadow: 0 2px 4px rgba(0,0,0,1);
+    /* --- NEW LOGO STYLE --- */
+    #menu-logo {
+      width: 110px;
+      height: 110px;
+      border-radius: 50%; /* Circle shape */
+      border: 4px solid #FFC107; /* Gold border */
+      box-shadow: 0 0 20px rgba(255, 193, 7, 0.4); /* Glow */
+      object-fit: cover;
+      margin: 15px 0; /* Space around logo */
+      animation: pulse 2s infinite ease-in-out;
     }
 
-    /* CREDITS STYLE */
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+
+    /* LEVEL BUTTONS */
+    .btn-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+      align-items: center;
+    }
+
+    .btn {
+      background: linear-gradient(to bottom, #5D4037, #3E2723);
+      border: 2px solid #8D6E63;
+      color: #FFC107;
+      font-family: inherit;
+      font-weight: 800;
+      font-size: 1.1rem;
+      padding: 12px 0;
+      width: 200px;
+      border-radius: 8px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+      transition: transform 0.1s;
+    }
+
+    .btn:active {
+      transform: scale(0.95);
+      background: #3E2723;
+    }
+
     .credits {
-      margin-top: 40px;
-      font-size: 0.8rem;
+      margin-top: 25px;
+      font-size: 0.75rem;
       text-transform: uppercase;
       letter-spacing: 2px;
-      color: rgba(255, 255, 255, 0.6);
+      color: rgba(255, 255, 255, 0.5);
       font-weight: 400;
-      border-top: 1px solid rgba(255, 193, 7, 0.3);
+      border-top: 1px solid rgba(255, 193, 7, 0.2);
       padding-top: 10px;
-    }
-
-    @keyframes float {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-10px); }
+      width: 220px;
     }
 
     #debug {
@@ -94,9 +135,16 @@
   <div id="ui-layer">
     <div id="start-msg">
       <h1>LORD ANWITH</h1>
-      <p>Tap Screen to Start</p>
-      <p style="font-size: 0.9rem; color: #fff; margin-top:20px; opacity:0.8">Target: 10 Points</p>
+      <div style="font-size: 0.9rem; color: #fff; opacity:0.8">Target: 10 Points</div>
       
+      <img id="menu-logo" src="assets/an1.jpeg" alt="Game Logo">
+
+      <div class="btn-container">
+        <button class="btn" onclick="startGame('easy')">Easy</button>
+        <button class="btn" onclick="startGame('medium')">Medium</button>
+        <button class="btn" onclick="startGame('hard')">Hard</button>
+      </div>
+
       <div class="credits">Developed by Akash Poojary</div>
     </div>
   </div>
@@ -130,10 +178,11 @@
     const winImg = new Image();
     winImg.src = "assets/kaup.jpg"; 
 
-    // --- 3. RESIZE (Optimized) ---
+    // --- 3. RESIZE ---
     let gameW, gameH; 
 
     function resize() {
+      // 2x Quality Cap
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       gameW = Math.min(window.innerWidth, 600);
       gameH = window.innerHeight;
@@ -150,33 +199,65 @@
 
     // Game Settings
     const WIN_SCORE = 10; 
-
-    // --- 4. GAME STATE ---
-    // FEATURE 1: Load High Score from Local Storage
     let storedHighScore = localStorage.getItem('lordAnwithHighScore') || 0;
 
+    // --- 4. GAME STATE ---
     const state = {
       running: false, 
       gameStarted: false,
       won: false,
+      
+      // Physics
       gravity: 0.40,    
-      jumpPower: -7.5,  
+      jumpPower: -7.5,
+      
+      // Level Params
+      wallGap: 200, 
+      wallSpeed: 4,
+      spawnFreq: 120,
+
       player: { x: 60, y: 0, w: 70, h: 70, vy: 0, angle: 0 }, 
       walls: [],
       particles: [],
       score: 0,
-      highScore: parseInt(storedHighScore), // Load high score
+      highScore: parseInt(storedHighScore),
       spawnTimer: 0,
       bgX: 0,
       bgSpeed: 1.5,
-      shake: 0 // FEATURE 3: Shake timer
+      shake: 0 
     };
     
     state.player.y = gameH / 2;
-
     let audioUnlocked = false;
 
-    // --- 5. AUDIO ---
+    // --- 5. START & DIFFICULTY ---
+    
+    window.startGame = function(level) {
+        if (level === 'easy') {
+            state.wallGap = 230;   
+            state.wallSpeed = 4;   
+            state.spawnFreq = 140; 
+        } else if (level === 'medium') {
+            state.wallGap = 180;   
+            state.wallSpeed = 5;   
+            state.spawnFreq = 110;
+        } else if (level === 'hard') {
+            state.wallGap = 150;   
+            state.wallSpeed = 6.5; 
+            state.spawnFreq = 90;  
+        }
+
+        state.gameStarted = true;
+        state.running = true;
+        state.won = false;
+        uiLayer.style.display = 'none'; 
+        
+        state.player.vy = state.jumpPower;
+        
+        tryUnlockAudio();
+        playJumpSound();
+    };
+
     function tryUnlockAudio() {
       if (audioUnlocked) return;
       [failAudio, winAudio, jumpAudio].forEach(snd => {
@@ -195,22 +276,19 @@
     }
 
     // --- 6. CONTROLS ---
-    function jump() {
-      if (!state.gameStarted) {
-        state.gameStarted = true;
-        state.running = true;
-        uiLayer.style.display = 'none';
-        state.player.vy = state.jumpPower;
-        tryUnlockAudio();
-        playJumpSound();
-        return;
-      }
+    function handleTap(e) {
+      if (e.cancelable) e.preventDefault(); 
 
+      // If waiting in menu, ignore taps
+      if (!state.gameStarted) return;
+
+      // If finished -> Return to Menu
       if (!state.running || state.won) {
-        reset();
+        returnToMenu();
         return;
       }
 
+      // Jump
       if (state.running && !state.won) {
         state.player.vy = state.jumpPower;
         state.player.angle = -0.3; 
@@ -219,15 +297,16 @@
       }
     }
 
-    c.addEventListener('mousedown', jump);
-    c.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); }, { passive: false });
+    c.addEventListener('mousedown', handleTap);
+    c.addEventListener('touchstart', handleTap, { passive: false });
 
-    function reset() {
+    function returnToMenu() {
       failAudio.pause(); failAudio.currentTime = 0;
       winAudio.pause();  winAudio.currentTime = 0;
       jumpAudio.pause(); jumpAudio.currentTime = 0;
 
-      state.running = true;
+      state.running = false;
+      state.gameStarted = false;
       state.won = false;
       state.player.y = gameH / 2;
       state.player.x = 60; 
@@ -237,32 +316,33 @@
       state.particles = [];
       state.score = 0;
       state.spawnTimer = 0;
-      state.shake = 0; // Reset shake
-      uiLayer.style.display = 'none'; 
+      state.shake = 0; 
+      
+      uiLayer.style.display = 'flex'; 
     }
 
     // --- 7. MAIN LOOP ---
     function loop() {
       requestAnimationFrame(loop);
       
-      // FEATURE 3: Screen Shake Logic
-      ctx.save(); // Save context before shaking
+      // Shake
+      ctx.save(); 
       if (state.shake > 0) {
-          const dx = (Math.random() - 0.5) * 15; // Random X shake
-          const dy = (Math.random() - 0.5) * 15; // Random Y shake
+          const dx = (Math.random() - 0.5) * 15; 
+          const dy = (Math.random() - 0.5) * 15; 
           ctx.translate(dx, dy);
           state.shake--;
       }
 
       ctx.clearRect(0, 0, gameW, gameH);
-
       drawBackground();
 
+      // Intro / Menu Screen
       if (!state.gameStarted) {
-         ctx.fillStyle = "rgba(0,0,0,0.5)"; 
+         ctx.fillStyle = "rgba(0,0,0,0.6)"; 
          ctx.fillRect(0, 0, gameW, gameH);
-         drawPlayer();
-         ctx.restore(); // Restore shake
+         // Don't draw player here, handled by HTML Logo
+         ctx.restore();
          return;
       }
 
@@ -280,7 +360,7 @@
 
       // Logic
       state.spawnTimer++;
-      if (state.spawnTimer > 110 && !state.won) {
+      if (state.spawnTimer > state.spawnFreq && !state.won) {
         spawnWall();
         state.spawnTimer = 0;
       }
@@ -303,7 +383,6 @@
       state.score++;
       let points = Math.floor(state.score / 100); 
       
-      // Update High Score
       if (points > state.highScore) {
           state.highScore = points;
           localStorage.setItem('lordAnwithHighScore', state.highScore);
@@ -316,7 +395,7 @@
       drawPlayer();
       drawScore(points);
       
-      ctx.restore(); // End shake transformation
+      ctx.restore();
     }
 
     // --- 8. DRAWING HELPERS ---
@@ -339,9 +418,9 @@
     }
 
     function spawnWall() {
-      const gap = 180; 
+      const gap = state.wallGap; 
       const thickness = 60;
-      const speed = 5;
+      const speed = state.wallSpeed; 
       const gapY = Math.random() * (gameH - gap - 100) + 50;
       state.walls.push({ x: gameW, y: 0, w: thickness, h: gapY, vx: -speed });
       state.walls.push({ x: gameW, y: gapY + gap, w: thickness, h: gameH - (gapY + gap), vx: -speed });
@@ -366,25 +445,20 @@
              a.y + pad < b.y + b.h && a.y + a.h - pad > b.y;
     }
 
-    // FEATURE 2: Realistic "Log" Walls
     function drawWalls() {
       for (const w of state.walls) {
-        // 1. Dark Bark Base
         ctx.fillStyle = "#3E2723"; 
         ctx.fillRect(w.x, w.y, w.w, w.h);
         
-        // 2. Vertical Bark Lines (Texture)
-        ctx.strokeStyle = "#281810"; // Darker brown
+        ctx.strokeStyle = "#281810"; 
         ctx.lineWidth = 2;
         ctx.beginPath();
-        // Draw 3 lines per log
         for(let i=10; i<w.w; i+=15) {
             ctx.moveTo(w.x + i, w.y);
             ctx.lineTo(w.x + i, w.y + w.h);
         }
         ctx.stroke();
 
-        // 3. Border
         ctx.lineWidth = 3;
         ctx.strokeStyle = "#8D6E63"; 
         ctx.strokeRect(w.x, w.y, w.w, w.h);
@@ -410,10 +484,9 @@
     }
 
     function drawScore(points) {
-      // Score Box
       ctx.fillStyle = "rgba(40, 30, 20, 0.8)"; 
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(15, 15, 140, 60, 10); // Taller for High Score
+      if (ctx.roundRect) ctx.roundRect(15, 15, 140, 60, 10);
       else ctx.rect(15, 15, 140, 60);
       ctx.fill();
       
@@ -425,12 +498,10 @@
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       
-      // Current Score
       ctx.font = "800 22px sans-serif";
       ctx.fillText("Score: " + points, 30, 35);
       
-      // FEATURE 1: High Score Display
-      ctx.fillStyle = "#FFD700"; // Gold
+      ctx.fillStyle = "#FFD700"; 
       ctx.font = "600 14px sans-serif";
       ctx.fillText("High: " + state.highScore, 30, 60);
     }
@@ -477,14 +548,13 @@
         ctx.shadowBlur = 0;
         ctx.fillStyle = "#fff";
         ctx.font = "300 18px sans-serif";
-        ctx.fillText("Tap anywhere to retry", gameW/2, gameH/2 + 30);
+        ctx.fillText("Tap to Return to Menu", gameW/2, gameH/2 + 30);
     }
 
     function die() {
       if (state.running) {
           state.running = false;
-          // FEATURE 3: Trigger Shake
-          state.shake = 15; // Shake for 15 frames
+          state.shake = 15; 
           failAudio.currentTime = 0; 
           failAudio.play().catch(e=>{});
       }
@@ -538,7 +608,7 @@
       ctx.shadowBlur = 0;
       ctx.fillStyle = "#fff";
       ctx.font = "300 18px sans-serif";
-      ctx.fillText("Tap to Play Again", gameW/2, gameH/2 + 50);
+      ctx.fillText("Tap to Return to Menu", gameW/2, gameH/2 + 50);
 
       if (Math.abs(state.player.x - targetX) < 5) {
          ctx.font = "40px sans-serif";
